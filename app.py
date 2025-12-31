@@ -218,10 +218,11 @@ def format_vedlegg_list(uploaded_files) -> str:
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_with_gemini(prompt: str, api_key: str) -> str:
     genai.configure(api_key=api_key)
-    model_name = "gemini-1.5-flash"
     
-    # VIKTIG: Vi har fjernet "tools=[...]" for å unngå feilmeldingen.
-    # Nå kjører modellen rent tekstbasert, noe som er mer stabilt.
+    # --- ENDRET HER: Vi bruker 'gemini-pro' for stabilitet ---
+    model_name = "gemini-pro"
+    
+    # Kjører modellen rent tekstbasert
     model = genai.GenerativeModel(model_name)
     
     max_retries = 3
