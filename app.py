@@ -152,11 +152,10 @@ def show_if(field_name: str, needs_list: list) -> bool:
 def clean_text(text: str) -> str:
     # 1. Fjern markdown-symboler
     text = text.replace("**", "").replace("##", "").replace("__", "")
-    text = text.replace("*", "") # Fjerner enkelt-stjerner
+    text = text.replace("*", "") 
     text = text.replace("#", "")
     
     # 2. Fjern uønskede "AI-overskrifter"
-    # Vi erstatter dem med ingenting for å flyte teksten bedre
     text = text.replace("Problembeskrivelse:", "")
     text = text.replace("Problembeskrivelse", "")
     text = text.replace("Juridisk grunnlag og krav:", "")
@@ -165,8 +164,8 @@ def clean_text(text: str) -> str:
     text = text.replace("Juridisk grunnlag", "")
     text = text.replace("Konklusjon:", "")
     
-    # 3. Fjern ekstra mellomrom som kan oppstå
-    text = re.sub(r'\n{3,}', '\n\n', text) # Maks to linjeskift
+    # 3. Fjern ekstra mellomrom
+    text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text.strip()
 
@@ -217,14 +216,13 @@ def format_vedlegg_list(uploaded_files) -> str:
     return ", ".join([f.name for f in uploaded_files])
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def generate_with_gemini(prompt: str, api_key: str, use_search: bool) -> str:
+def generate_with_gemini(prompt: str, api_key: str) -> str:
     genai.configure(api_key=api_key)
     model_name = "gemini-1.5-flash"
     
-    if use_search:
-        model = genai.GenerativeModel(model_name, tools=[{"google_search": {}}])
-    else:
-        model = genai.GenerativeModel(model_name)
+    # VIKTIG: Vi har fjernet "tools=[...]" for å unngå feilmeldingen.
+    # Nå kjører modellen rent tekstbasert, noe som er mer stabilt.
+    model = genai.GenerativeModel(model_name)
     
     max_retries = 3
     for attempt in range(max_retries):
@@ -234,7 +232,6 @@ def generate_with_gemini(prompt: str, api_key: str, use_search: bool) -> str:
         except ResourceExhausted:
             time.sleep(2 * (attempt + 1)) 
             if attempt == max_retries - 1:
-                # Vi kaster feilen videre så vi kan fange den i hovedløkken
                 raise 
         except Exception as e:
             raise e
@@ -439,7 +436,7 @@ if submit:
     E-POST HÅNDTERING:
     Jeg har lagt ved en e-post i dataene under (se etter 'Kjent E-post').
     - HVIS den finnes: Bruk den som MAIL_MOTTAKER.
-    - HVIS IKKE: Søk på nettet etter kundeservice/klage e-post for {motpart}.
+    - HVIS IKKE: Prøv å gjett den mest sannsynlige kundeservice-eposten for {motpart}, eller la feltet stå tomt så brukeren kan fylle det inn selv.
     
     OPPGAVE:
     Skriv en profesjonell klage basert på fakta under.
@@ -471,7 +468,7 @@ if submit:
 
     with st.spinner("Agenten søker og skriver..."):
         try:
-            raw_text = generate_with_gemini(prompt, ENV_API_KEY, use_search=True)
+            raw_text = generate_with_gemini(prompt, ENV_API_KEY)
             emne, epost_mottaker, body = parse_ai_output(raw_text, cfg["default_subject"])
             
             # --- SUKSESS! ---
@@ -502,11 +499,9 @@ if submit:
 
             st.text_area("Innhold (Kopier/Lim inn):", value=body, height=450)
 
-        # --- HER ER FIKSEN FOR DEN RØDE FEILMELDINGEN ---
         except ResourceExhausted:
             st.warning("🚦 Stor pågang akkurat nå. Vennligst vent 1 minutt og prøv igjen (Google Free Tier limit).")
         except Exception as e:
-            # Sjekker om feilen egentlig var en ressurs-feil som snek seg forbi
             if "ResourceExhausted" in str(e):
                 st.warning("🚦 Stor pågang akkurat nå. Vennligst vent 1 minutt og prøv igjen.")
             else:
