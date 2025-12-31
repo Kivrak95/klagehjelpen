@@ -1,18 +1,19 @@
 import os
 import re
+import time
 import urllib.parse
 from datetime import date
 from dotenv import load_dotenv
 
 import streamlit as st
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
 
 # ==========================================
 # 1. SETUP & CONFIG
 # ==========================================
 load_dotenv()
 # Vi henter nøkkelen direkte fra systemet/filen.
-# Brukeren skal ikke trenge å se eller røre denne.
 ENV_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
@@ -149,7 +150,13 @@ def show_if(field_name: str, needs_list: list) -> bool:
     return field_name in needs_list
 
 def clean_text(text: str) -> str:
-    return text.replace("**", "").replace("##", "").replace("__", "").strip()
+    # Fjerner markdown-symboler som stjerner og hashtags
+    text = text.replace("**", "").replace("##", "").replace("__", "")
+    text = text.replace("*", "") # Fjerner enkelt-stjerner også
+    text = text.replace("#", "")
+    # Fjerner også eksplisitte titler hvis AI-en skulle finne på å skrive dem
+    text = text.replace("Problembeskrivelse:", "").replace("Juridisk grunnlag:", "")
+    return text.strip()
 
 def extract_email(text: str) -> str:
     match = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', text or "")
@@ -200,16 +207,29 @@ def format_vedlegg_list(uploaded_files) -> str:
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_with_gemini(prompt: str, api_key: str, use_search: bool) -> str:
     genai.configure(api_key=api_key)
-    model_name = "gemini-flash-latest"
+    model_name = "gemini-1.5-flash"
+    
     if use_search:
         model = genai.GenerativeModel(model_name, tools=[{"google_search": {}}])
     else:
         model = genai.GenerativeModel(model_name)
-    response = model.generate_content(prompt)
-    return response.text
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(prompt)
+            return response.text
+        except ResourceExhausted:
+            time.sleep(2 * (attempt + 1)) 
+            if attempt == max_retries - 1:
+                raise 
+        except Exception as e:
+            raise e
+    
+    return ""
 
 # ==========================================
-# 3. SIDEBAR (MED DONASJON)
+# 3. SIDEBAR
 # ==========================================
 with st.sidebar:
     st.header("👤 Innstillinger")
@@ -226,12 +246,12 @@ with st.sidebar:
     st.header("☕ Støtt prosjektet")
     st.info("KlageHjelpen er gratis å bruke. Hvis vi hjalp deg med å spare penger, setter vi stor pris på en liten donasjon!")
     
-    # Buy Me a Coffee (Oppdatert link)
+    # Buy Me a Coffee
     st.link_button("☕ Spander en kaffe", "https://buymeacoffee.com/klagehjelpen")
     
     # Vipps Donasjon
     with st.expander("🧡 Vipps en gave"):
-        st.markdown("**Vipps-nummer:** `920 573 95`")
+        st.markdown("**Vipps-nummer:** `901 135 31`")
         st.markdown("Merk gjerne med 'Klagehjelp'. Tusen takk!")
 
 # ==========================================
@@ -301,7 +321,6 @@ with st.form("klage_form"):
     if show_if("dato", needs):
         with d1: dato = st.date_input("Dato for hendelse", value=date.today())
 
-    # --- KATEGORI-SPESIFIKKE FELTER ---
     if show_if("produkt", needs):
         produkt = st.text_input("Produkt (modell)", placeholder=ph.get("produkt", "F.eks. Varenavn..."))
     
@@ -320,7 +339,6 @@ with st.form("klage_form"):
     if show_if("arbeid", needs):
         arbeid = st.text_area("Hva ble avtalt/utført?", height=80, placeholder=ph.get("arbeid", "Beskriv jobben..."))
     
-    # Tekstblokker
     beskr_label = "Beskrivelse (stikkord er nok)"
     if show_if("grunn", needs): beskr_label = "Hvorfor er boten feil? (stikkord)" 
     if show_if("mangel", needs): beskr_label = "Hva er mangelen? (stikkord)"
@@ -351,7 +369,6 @@ with st.form("klage_form"):
 # 5. LOGIKK & GENERERING
 # ==========================================
 if submit:
-    # Sjekk at vi faktisk har en nøkkel i systemet
     if not ENV_API_KEY:
         st.error("❌ Fant ingen API-nøkkel i .env-filen! Kontakt administrator.")
         st.stop()
@@ -400,8 +417,11 @@ if submit:
     Du skriver en klage PÅ VEGNE AV en bruker. Skriv i JEG-form.
     IKKE utgi deg for å være advokat. 
 
-    VIKTIG: Brukeren skriver ofte kun stikkord i beskrivelsen.
-    DIN JOBB: Omskriv stikkordene til fullstendige, flytende og profesjonelle setninger.
+    VIKTIG: 
+    1. Brukeren skriver ofte kun stikkord i beskrivelsen. DIN JOBB: Omskriv stikkordene til fullstendige, flytende og profesjonelle setninger.
+    2. ALDRI bruk markdown, stjerner (*), hashtags (#) i teksten.
+    3. ALDRI bruk overskrifter som "Problembeskrivelse" eller "Juridisk grunnlag" inne i teksten.
+    4. Skriv alt som et sammenhengende brev med naturlige avsnitt.
     
     E-POST HÅNDTERING:
     Jeg har lagt ved en e-post i dataene under (se etter 'Kjent E-post').
@@ -422,8 +442,8 @@ if submit:
 
     INNHOLD:
     - Start med "Hei," eller "Til {motpart},".
-    - Vær konkret på hva som har skjedd (gjør stikkord om til tekst).
-    - Henvis til lovverk ({law_hint}) kort og saklig.
+    - Vær konkret på hva som har skjedd (gjør stikkord om til tekst) i et flytende språk.
+    - Gå naturlig over til å henvise til lovverk ({law_hint}) uten å bruke overskrifter.
     - Fremsett kravet tydelig med frist (f.eks 7-10 dager).
     - Avslutt med navn og kontaktinfo.
 
