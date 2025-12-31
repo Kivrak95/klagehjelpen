@@ -150,12 +150,24 @@ def show_if(field_name: str, needs_list: list) -> bool:
     return field_name in needs_list
 
 def clean_text(text: str) -> str:
-    # Fjerner markdown-symboler som stjerner og hashtags
+    # 1. Fjern markdown-symboler
     text = text.replace("**", "").replace("##", "").replace("__", "")
-    text = text.replace("*", "") # Fjerner enkelt-stjerner også
+    text = text.replace("*", "") # Fjerner enkelt-stjerner
     text = text.replace("#", "")
-    # Fjerner også eksplisitte titler hvis AI-en skulle finne på å skrive dem
-    text = text.replace("Problembeskrivelse:", "").replace("Juridisk grunnlag:", "")
+    
+    # 2. Fjern uønskede "AI-overskrifter"
+    # Vi erstatter dem med ingenting for å flyte teksten bedre
+    text = text.replace("Problembeskrivelse:", "")
+    text = text.replace("Problembeskrivelse", "")
+    text = text.replace("Juridisk grunnlag og krav:", "")
+    text = text.replace("Juridisk grunnlag og krav", "")
+    text = text.replace("Juridisk grunnlag:", "")
+    text = text.replace("Juridisk grunnlag", "")
+    text = text.replace("Konklusjon:", "")
+    
+    # 3. Fjern ekstra mellomrom som kan oppstå
+    text = re.sub(r'\n{3,}', '\n\n', text) # Maks to linjeskift
+    
     return text.strip()
 
 def extract_email(text: str) -> str:
@@ -222,6 +234,7 @@ def generate_with_gemini(prompt: str, api_key: str, use_search: bool) -> str:
         except ResourceExhausted:
             time.sleep(2 * (attempt + 1)) 
             if attempt == max_retries - 1:
+                # Vi kaster feilen videre så vi kan fange den i hovedløkken
                 raise 
         except Exception as e:
             raise e
@@ -251,7 +264,7 @@ with st.sidebar:
     
     # Vipps Donasjon
     with st.expander("🧡 Vipps en gave"):
-        st.markdown("**Vipps-nummer:** `901 135 31`")
+        st.markdown("**Vipps-nummer:** `920 573 95`")
         st.markdown("Merk gjerne med 'Klagehjelp'. Tusen takk!")
 
 # ==========================================
@@ -420,8 +433,8 @@ if submit:
     VIKTIG: 
     1. Brukeren skriver ofte kun stikkord i beskrivelsen. DIN JOBB: Omskriv stikkordene til fullstendige, flytende og profesjonelle setninger.
     2. ALDRI bruk markdown, stjerner (*), hashtags (#) i teksten.
-    3. ALDRI bruk overskrifter som "Problembeskrivelse" eller "Juridisk grunnlag" inne i teksten.
-    4. Skriv alt som et sammenhengende brev med naturlige avsnitt.
+    3. ALDRI bruk overskrifter som "Problembeskrivelse", "Juridisk grunnlag" eller "Konklusjon".
+    4. Skriv alt som et helt vanlig, sammenhengende brev.
     
     E-POST HÅNDTERING:
     Jeg har lagt ved en e-post i dataene under (se etter 'Kjent E-post').
@@ -443,7 +456,7 @@ if submit:
     INNHOLD:
     - Start med "Hei," eller "Til {motpart},".
     - Vær konkret på hva som har skjedd (gjør stikkord om til tekst) i et flytende språk.
-    - Gå naturlig over til å henvise til lovverk ({law_hint}) uten å bruke overskrifter.
+    - Henvis til lovverk ({law_hint}) kort og saklig, flettet naturlig inn i teksten.
     - Fremsett kravet tydelig med frist (f.eks 7-10 dager).
     - Avslutt med navn og kontaktinfo.
 
@@ -459,34 +472,42 @@ if submit:
     with st.spinner("Agenten søker og skriver..."):
         try:
             raw_text = generate_with_gemini(prompt, ENV_API_KEY, use_search=True)
-        except Exception:
-            raw_text = generate_with_gemini(prompt, ENV_API_KEY, use_search=False)
+            emne, epost_mottaker, body = parse_ai_output(raw_text, cfg["default_subject"])
+            
+            # --- SUKSESS! ---
+            if prefilled_email and (not epost_mottaker or "@" not in epost_mottaker or epost_mottaker == "None"):
+                epost_mottaker = prefilled_email
+            elif prefilled_email:
+                epost_mottaker = prefilled_email
 
-    emne, epost_mottaker, body = parse_ai_output(raw_text, cfg["default_subject"])
-    
-    if prefilled_email and (not epost_mottaker or "@" not in epost_mottaker or epost_mottaker == "None"):
-        epost_mottaker = prefilled_email
-    elif prefilled_email:
-        epost_mottaker = prefilled_email
+            st.success("✅ Klagen er klar!")
 
-    st.success("✅ Klagen er klar!")
+            final_email = st.text_input("Mottaker e-post", value=epost_mottaker)
+            
+            if kategori == "Flyforsinkelse":
+                st.warning("⚠️ OBS: Flyselskaper krever ofte at du bruker deres webskjema. Du kan kopiere teksten under og lime inn i skjemaet deres.")
 
-    final_email = st.text_input("Mottaker e-post", value=epost_mottaker)
-    
-    if kategori == "Flyforsinkelse":
-        st.warning("⚠️ OBS: Flyselskaper krever ofte at du bruker deres webskjema. Du kan kopiere teksten under og lime inn i skjemaet deres.")
+            safe_subject = urllib.parse.quote(emne)
+            safe_body = urllib.parse.quote(body)
+            mailto_link = f"mailto:{final_email}?subject={safe_subject}&body={safe_body}"
 
-    safe_subject = urllib.parse.quote(emne)
-    safe_body = urllib.parse.quote(body)
-    mailto_link = f"mailto:{final_email}?subject={safe_subject}&body={safe_body}"
+            col_btn, col_msg = st.columns([1, 2])
+            with col_btn:
+                st.link_button("📧 Åpne E-post", mailto_link, type="primary")
+            with col_msg:
+                if not final_email:
+                    st.warning("⚠️ Ingen mottaker. Du må lime inn e-posten selv.")
+                else:
+                    st.info(f"Klar til sending: **{final_email}**")
 
-    col_btn, col_msg = st.columns([1, 2])
-    with col_btn:
-        st.link_button("📧 Åpne E-post", mailto_link, type="primary")
-    with col_msg:
-        if not final_email:
-            st.warning("⚠️ Ingen mottaker. Du må lime inn e-posten selv.")
-        else:
-            st.info(f"Klar til sending: **{final_email}**")
+            st.text_area("Innhold (Kopier/Lim inn):", value=body, height=450)
 
-    st.text_area("Innhold (Kopier/Lim inn):", value=body, height=450)
+        # --- HER ER FIKSEN FOR DEN RØDE FEILMELDINGEN ---
+        except ResourceExhausted:
+            st.warning("🚦 Stor pågang akkurat nå. Vennligst vent 1 minutt og prøv igjen (Google Free Tier limit).")
+        except Exception as e:
+            # Sjekker om feilen egentlig var en ressurs-feil som snek seg forbi
+            if "ResourceExhausted" in str(e):
+                st.warning("🚦 Stor pågang akkurat nå. Vennligst vent 1 minutt og prøv igjen.")
+            else:
+                st.error(f"En feil oppstod: {e}")
