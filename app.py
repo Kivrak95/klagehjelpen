@@ -21,108 +21,107 @@ if ENV_API_KEY:
 st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
 
 # ==========================================
-# 2. VERIFISERT KONTAKTDATABASE
+# 2. VERIFISERT KONTAKTDATABASE (50+ SELSKAPER)
 # ==========================================
 VERIFIED_CONTACTS = {
-    # --- FLYSELSKAP ---
-    "sas": {
-        "web": "https://www.sas.no/kundeservice/kontakt/skjemaer/sertifikat-forsinket-innstilt-fly",
-        "navn": "SAS",
-        "advarsel": "Bruk dette skjemaet for EU261-kompensasjon."
+    # --- ELEKTRONIKK & HVITEVARER ---
+    "elkjop": {"email": "hello@elkjop.no", "navn": "Elkjøp"},
+    "elkjøp": {"email": "hello@elkjop.no", "navn": "Elkjøp"},
+    "power": {"email": "kundeservice@power.no", "navn": "Power"},
+    "komplett": {"email": "kundeservice@komplett.no", "navn": "Komplett.no"},
+    "netonnet": {"email": "kundeservice@netonnet.no", "navn": "NetOnNet"},
+    "apple": {"email": "contactus.no@euro.apple.com", "navn": "Apple Store"},
+    "dustin": {"email": "kundeservice@dustinhome.no", "navn": "Dustin Home"},
+    "fjellsport": {"email": "kundeservice@fjellsport.no", "navn": "Fjellsport"},
+
+    # --- MØBLER, INTERIØR & BYGG ---
+    "ikea": {
+        "web": "https://www.ikea.com/no/no/customer-service/contact-us/",
+        "navn": "IKEA",
+        "advarsel": "IKEA krever ofte chat/tlf, men bruk dette kontaktskjemaet for reklamasjoner."
     },
-    "norwegian": {
-        "web": "https://www.norwegian.com/no/reiseinformasjon/forsinkelser-og-kanselleringer/forsinkelser/",
-        "navn": "Norwegian",
-        "advarsel": "Norwegian krever at du velger refusjon/krav via denne portalen."
+    "jysk": {"email": "kundeservice@jysk.no", "navn": "JYSK"},
+    "bohus": {"email": "kundeservice@bohus.no", "navn": "Bohus"},
+    "skeidar": {"email": "netthandel@skeidar.no", "navn": "Skeidar"},
+    "møbelringen": {"email": "kundeservice@mobelringen.no", "navn": "Møbelringen"},
+    "kid": {"email": "kundeservice@kid.no", "navn": "Kid Interiør"},
+    "princess": {"email": "kundeservice@princessgruppen.no", "navn": "Princess"},
+    "clas ohlson": {"email": "kundesenter@clasohlson.no", "navn": "Clas Ohlson"},
+    "biltema": {"email": "kundeservice@biltema.no", "navn": "Biltema"},
+    "jula": {"web": "https://www.jula.no/kundeservice/kontakt-oss/", "navn": "Jula"},
+    "megaflis": {"email": "kundeservice@megaflis.no", "navn": "Megaflis"},
+    "thansen": {"email": "thansen@thansen.no", "navn": "Thansen"},
+    "europris": {"email": "kundeservice@europris.no", "navn": "Europris"},
+    "maxbo": {"web": "https://www.maxbo.no/kundeservice/kontakt-oss/", "navn": "Maxbo", "advarsel": "Bruk skjemaet for netthandel. Kjøp i butikk må tas i varehus."},
+
+    # --- KLÆR & SPORT ---
+    "zalando": {"email": "service@zalando.no", "navn": "Zalando"},
+    "xxl": {"email": "kundeservice@xxl.no", "navn": "XXL"},
+    "sport 1": {"email": "kundeservice@sport1.no", "navn": "Sport 1"},
+    "intersport": {"email": "kundeservice@intersport.no", "navn": "Intersport"},
+    "hm": {"web": "https://www2.hm.com/no_no/customer-service/contact.html", "navn": "H&M"},
+    "h&m": {"web": "https://www2.hm.com/no_no/customer-service/contact.html", "navn": "H&M"},
+
+    # --- MAT, LEVERING & DAGLIGVARE ---
+    "oda": {"email": "hei@oda.com", "navn": "Oda"},
+    "foodora": {"email": "support@foodora.no", "navn": "Foodora"},
+    "wolt": {"email": "support@wolt.com", "navn": "Wolt"},
+    "meny": {
+        "web": "https://meny.no/kundeservice/reklamasjon/",
+        "email": "nettbutikk@meny.no", 
+        "navn": "Meny",
+        "advarsel": "Bruk reklamasjonsskjemaet for raskest behandling."
     },
-    "widerøe": {
-        "web": "https://www.wideroe.no/hjelp-og-kontakt/flight-claim",
-        "navn": "Widerøe",
-        "advarsel": "Bruk Widerøes eget skjema for refusjon og erstatning."
-    },
-    "ryanair": {
-        "web": "https://onlineform.ryanair.com/no/no/eu-261",
-        "navn": "Ryanair",
-        "advarsel": "Ryanair godtar KUN sitt eget webskjema (EU261)."
-    },
-    "wizz": {
-        "web": "https://wizzair.com/en-gb/information-and-services/prices-discounts/refunds-and-compensations",
-        "navn": "Wizz Air",
-        "advarsel": "Du må logge inn på din Wizz-konto for å sende krav."
-    },
-    "klm": {
-        "web": "https://www.klm.no/en/information/refund-compensation",
-        "navn": "KLM",
-        "advarsel": "KLM har en egen portal for 'Refund and compensation'."
-    },
-    "lufthansa": {
-        "web": "https://www.lufthansa.com/no/en/feedback",
-        "navn": "Lufthansa",
-        "advarsel": "Velg 'Flight disruption' i skjemaet deres."
-    },
-    "air france": {
-        "web": "https://wwws.airfrance.no/en/claim",
-        "navn": "Air France",
-        "advarsel": "Bruk deres online 'Claim'-portal."
-    },
-    "finnair": {
-        "web": "https://www.finnair.com/no-en/customer-care/feedback-and-claims",
-        "navn": "Finnair",
-        "advarsel": "Velg 'Give feedback or make a claim'."
-    },
-    "british airways": {
-        "web": "https://www.britishairways.com/content/information/delayed-or-cancelled-flights/compensation",
-        "navn": "British Airways",
-        "advarsel": "Bruk skjemaet under 'Claim compensation'."
-    },
-    "icelandair": {
-        "web": "https://www.icelandair.com/support/contact-us/claims/",
-        "navn": "Icelandair",
-        "advarsel": "Direktelink til deres krav-portal."
-    },
-    "iberia": {
-        "web": "https://www.iberia.com/no/customer-relations/",
-        "navn": "Iberia",
-        "advarsel": "Gå via 'Customer Relations' -> 'Claims'."
-    },
-    "qatar": {
-        "web": "https://www.qatarairways.com/en/help.html#feedback",
-        "navn": "Qatar Airways",
-        "advarsel": "Velg 'Feedback' og deretter 'Claim'."
-    },
-    "emirates": {
-        "web": "https://www.emirates.com/no/english/help/forms/complaint/",
-        "navn": "Emirates",
-        "advarsel": "Bruk skjemaet for 'Complaint/Feedback'."
-    },
-    "turkish": {
-        "web": "https://www.turkishairlines.com/en-no/any-questions/customer-relations/feedback/",
-        "navn": "Turkish Airlines",
-        "advarsel": "Du må opprette en 'Feedback' sak."
-    },
+    "kiwi": {"web": "https://kiwi.no/kundeservice/kontakt-oss/", "navn": "Kiwi", "advarsel": "Kiwi håndterer klager via skjema."},
+    "rema": {"web": "https://www.rema.no/kundeservice/", "navn": "Rema 1000"},
+
+    # --- FLYSELSKAP (Mange krever webskjema!) ---
+    "sas": {"web": "https://www.sas.no/kundeservice/kontakt/skjemaer/", "navn": "SAS", "advarsel": "SAS krever bruk av webskjema for erstatning."},
+    "norwegian": {"web": "https://www.norwegian.com/no/reiseinformasjon/forsinkelser-og-kanselleringer/forsinkelser/", "navn": "Norwegian"},
+    "widerøe": {"web": "https://www.wideroe.no/hjelp-og-kontakt/flight-claim", "navn": "Widerøe"},
+    "ryanair": {"web": "https://onlineform.ryanair.com/no/no/eu-261", "navn": "Ryanair", "advarsel": "Ryanair godtar KUN sitt eget skjema."},
+    "wizz": {"web": "https://wizzair.com/en-gb/information-and-services/prices-discounts/refunds-and-compensations", "navn": "Wizz Air"},
+    "klm": {"web": "https://www.klm.no/en/information/refund-compensation", "navn": "KLM"},
+    "lufthansa": {"web": "https://www.lufthansa.com/no/en/feedback", "navn": "Lufthansa"},
+    "air france": {"web": "https://wwws.airfrance.no/en/claim", "navn": "Air France"},
+    "british airways": {"web": "https://www.britishairways.com/content/information/delayed-or-cancelled-flights/compensation", "navn": "British Airways"},
+    "finnair": {"web": "https://www.finnair.com/no-en/customer-care/feedback-and-claims", "navn": "Finnair"},
+    "icelandair": {"web": "https://www.icelandair.com/support/contact-us/claims/", "navn": "Icelandair"},
+    "qatar": {"web": "https://www.qatarairways.com/en/help.html", "navn": "Qatar Airways"},
+    "emirates": {"web": "https://www.emirates.com/no/english/help/forms/complaint/", "navn": "Emirates"},
+
+    # --- REISE & KOLLEKTIV (Tog, Buss, Ferge) ---
+    "vy": {"web": "https://www.vy.no/kundeservice/klage-og-erstatning", "navn": "Vy", "advarsel": "Vy krever bruk av skjema for refusjon."},
+    "ruter": {"web": "https://ruter.no/fa-hjelp-og-kontakt/kontaktskjema/", "navn": "Ruter", "advarsel": "Ruter behandler kun klager via skjema (ikke e-post)."},
+    "flytoget": {"email": "flytoget@flytoget.no", "navn": "Flytoget"},
+    "skyss": {"web": "https://www.skyss.no/hjelp-og-kontakt/kundesenter/kontaktskjema/", "navn": "Skyss (Bergen)"},
+    "atb": {"web": "https://www.atb.no/kontakt/", "navn": "AtB (Trondheim)"},
+    "kolumbus": {"web": "https://www.kolumbus.no/hjelp-og-kontakt/kontaktskjema/", "navn": "Kolumbus (Stavanger)"},
+    "color line": {"web": "https://www.colorline.no/kundeservice/tilbakemelding", "navn": "Color Line"},
+    "fjord line": {"email": "info@fjordline.com", "navn": "Fjord Line"},
+    "dfds": {"email": "kundeservice@dfds.com", "navn": "DFDS"},
 
     # --- PARKERING ---
-    "apcoa": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
-    "europark": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
+    "apcoa": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa / EuroPark"},
+    "europark": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa / EuroPark"},
     "aimo": {"web": "https://www.aimopark.no/kontakt-oss/kontrollsanksjon/", "navn": "Aimo Park"},
     "onepark": {"web": "https://onepark.no/klage/", "navn": "ONEPARK"},
     "easypark": {"email": "kundeservice@easypark.no", "navn": "EasyPark"},
-    "riverty": {"web": "https://www.riverty.com/no-no/kundeservice/", "navn": "Riverty (Faktura)", "advarsel": "Gjelder ofte selve betalingen/fakturaen."},
+    "riverty": {"web": "https://www.riverty.com/no-no/kundeservice/", "navn": "Riverty (Faktura)"},
 
-    # --- VAREKJØP ---
-    "elkjop": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
-    "elkjøp": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
-    "power": {"email": "kundeservice@power.no", "navn": "Power Kundeservice"},
-    "komplett": {"email": "kundeservice@komplett.no", "navn": "Komplett.no"},
-    "netonnet": {"email": "kundeservice@netonnet.no", "navn": "NetOnNet"},
-    "ikea": {"email": "kundeservice.no@ikea.com", "navn": "IKEA Kundeservice"},
-    "zalando": {"email": "service@zalando.no", "navn": "Zalando"},
-    "apple": {"email": "contactus.no@euro.apple.com", "navn": "Apple Store"},
-    "xxl": {"email": "kundeservice@xxl.no", "navn": "XXL"}
+    # --- TELEKOM & BANK ---
+    "telenor": {"web": "https://www.telenor.no/kundeservice/kontakt-oss/", "navn": "Telenor"},
+    "telia": {"email": "kundekontakt-privat@telia.no", "navn": "Telia", "advarsel": "Denne e-posten gjelder primært formelle klager."},
+    "onecall": {"email": "kundeservice@onecall.no", "navn": "OneCall"},
+    "talkmore": {"email": "kundeservice@talkmore.no", "navn": "Talkmore"},
+    "ice": {"web": "https://www.ice.no/kundeservice/kontakt-oss/", "navn": "Ice"},
+    "vipps": {"web": "https://vipps.no/kontakt-oss/", "navn": "Vipps"},
+    "klarna": {"web": "https://www.klarna.com/no/kundeservice/", "navn": "Klarna"},
+    "dnb": {"web": "https://www.dnb.no/kundeservice", "navn": "DNB"}
 }
 
 CATEGORY_HINTS = {
-    "Varekjøp": "Forbrukerkjøpsloven § 27 (5 års reklamasjonsfrist).",
+    "Varekjøp": "Forbrukerkjøpsloven § 27 (5 års reklamasjonsfrist for varer ment å vare lenge).",
     "Flyforsinkelse": "EU-forordning 261/2004 (Standardkompensasjon).",
     "Parkeringsbot": "Parkeringsforskriften & Avtaleloven § 36.",
     "Håndverkertjenester": "Håndverkertjenesteloven § 22.",
@@ -136,15 +135,19 @@ CATEGORY_HINTS = {
 def get_best_contact_method(company_name_from_ai):
     if not company_name_from_ai: return None
     search_term = company_name_from_ai.lower().strip()
+    
+    # Eksakt søk eller delvis match i vår store database
     for key, info in VERIFIED_CONTACTS.items():
-        if key in search_term: return info
+        if key in search_term:
+            return info
     return None
 
 def extract_pdf_data(uploaded_file):
     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
     full_text = ""
     first_page_img = None
-    for page in doc: full_text += page.get_text() + "\n"
+    for page in doc: 
+        full_text += page.get_text() + "\n"
     if len(doc) > 0:
         page = doc.load_page(0)
         pix = page.get_pixmap()
@@ -216,7 +219,7 @@ if "generated_complaint" not in st.session_state:
     st.session_state.generated_complaint = None
 if "detected_company" not in st.session_state:
     st.session_state.detected_company = None
-if "uploaded_filenames" not in st.session_state:
+if "uploaded_filenames" not in st.session_state: 
     st.session_state.uploaded_filenames = []
 
 tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokumenter)", "✍️ Manuell (Skriv selv)"])
@@ -317,6 +320,7 @@ with tab_manuell:
     
     col_sel, col_det = st.columns(2)
     with col_sel:
+        # Sortert liste av unike navn fra den STORE databasen
         unique_companies = sorted(list(set([v["navn"] for k, v in VERIFIED_CONTACTS.items()])))
         valgt_selskap_navn = st.selectbox("Velg selskap (valgfritt)", ["Annet / Skriv selv"] + unique_companies)
         
