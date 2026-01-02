@@ -21,25 +21,47 @@ st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
 st.title("⚖️ KlageHjelpen")
 st.markdown("**Din profesjonelle forbruker-agent.**")
 
-# --- DATABASE ---
-COMPANY_DB = {
+# --- DATABASE MED JURIDISK INFO ---
+# Her kobler vi kategorier mot lovverk slik at Manuell-fanen blir super-smart.
+CATEGORY_INFO = {
     "Varekjøp": {
-        "Elkjøp": "hello@elkjop.no", "Power": "kundeservice@power.no",
-        "Komplett": "kundeservice@komplett.no", "NetOnNet": "kundeservice@netonnet.no",
-        "IKEA": "kundeservice.no@ikea.com", "XXL": "kundeservice@xxl.no",
-        "Zalando": "service@zalando.no", "Apple Store": "contactus.no@euro.apple.com"
+        "lov": "Forbrukerkjøpsloven",
+        "hint": "§ 27 (5 års reklamasjonsfrist for varer ment å vare lenge). § 16 (Mangel). § 29 (Krav om retting/omlevering).",
+        "selskaper": {
+            "Elkjøp": "hello@elkjop.no", "Power": "kundeservice@power.no",
+            "Komplett": "kundeservice@komplett.no", "NetOnNet": "kundeservice@netonnet.no",
+            "IKEA": "kundeservice.no@ikea.com", "XXL": "kundeservice@xxl.no",
+            "Zalando": "service@zalando.no", "Apple Store": "contactus.no@euro.apple.com"
+        }
     },
     "Flyforsinkelse": {
-        "SAS": "customer.care@sas.no", "Norwegian": "post.reception@norwegian.com",
-        "Widerøe": "support@wideroe.no"
+        "lov": "EU-forordning 261/2004",
+        "hint": "Rett til standardkompensasjon (250-600 EUR) ved forsinkelse over 3 timer, med mindre det er 'ekstraordinære omstendigheter'. Rett til mat/drikke.",
+        "selskaper": {
+            "SAS": "customer.care@sas.no", "Norwegian": "post.reception@norwegian.com",
+            "Widerøe": "support@wideroe.no"
+        }
     },
     "Parkeringsbot": {
-        "Apcoa": "kundesenter@apcoa.no", "Aimo Park": "kunde@aimopark.no",
-        "EasyPark": "kundeservice@easypark.no"
+        "lov": "Parkeringsforskriften og Avtaleloven",
+        "hint": "§ 36 (Rimelighet). Var skiltingen tydelig nok? Var automaten i ustand? (Parkeringsklagenemnda-praksis).",
+        "selskaper": {
+            "Apcoa": "kundesenter@apcoa.no", "Aimo Park": "kunde@aimopark.no",
+            "EasyPark": "kundeservice@easypark.no"
+        }
+    },
+    "Håndverkertjenester": {
+        "lov": "Håndverkertjenesteloven",
+        "hint": "§ 5 (Fagmessig utførelse). § 22 (Reklamasjon). 5 års frist på resultatet.",
+        "selskaper": {} 
     },
     "Annet": {
-        "Telenor": "telenor.klager@telenor.no", "Telia": "kundesenter@telia.no",
-        "Vy": "tog@vy.no", "Ruter": "post@ruter.no"
+        "lov": "Alminnelig avtalerett",
+        "hint": "Avtalen er bindende. Er det levert som avtalt?",
+        "selskaper": {
+            "Telenor": "telenor.klager@telenor.no", "Telia": "kundesenter@telia.no",
+            "Vy": "tog@vy.no", "Ruter": "post@ruter.no"
+        }
     }
 }
 
@@ -83,10 +105,7 @@ def process_uploaded_file(uploaded_file):
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_with_gemini(prompt: str, image=None) -> str:
     genai.configure(api_key=ENV_API_KEY)
-    
-    # --- ENDRET HER ---
-    # Vi bruker 'gemini-2.0-flash' fordi den står på listen din.
-    model_name = "gemini-2.0-flash"
+    model_name = "gemini-2.0-flash" # Din kraftige modell
     
     try:
         model = genai.GenerativeModel(model_name)
@@ -98,7 +117,7 @@ def generate_with_gemini(prompt: str, image=None) -> str:
         return response.text
 
     except Exception as e:
-        # Fallback hvis 2.0 feiler, prøver vi 2.0-flash-001 som også stod på listen
+        # Fallback
         try:
             fallback = "gemini-2.0-flash-001"
             model = genai.GenerativeModel(fallback)
@@ -148,7 +167,7 @@ tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp)", "✍️ Manuell (S
 
 # --- TAB 1: AUTOMATISK ---
 with tab_auto:
-    st.info("📸 **Last opp PDF (f.eks bot/faktura) eller bilde – la AI gjøre resten!**")
+    st.info("📸 **Last opp PDF (f.eks bot, billett, kvittering) eller bilde – la AI gjøre resten!**")
     
     col_upload, col_info = st.columns([1, 1])
     
@@ -156,7 +175,8 @@ with tab_auto:
         uploaded_file = st.file_uploader("Last opp dokument", type=["jpg", "jpeg", "png", "pdf"])
         
     with col_info:
-        feil_beskrivelse = st.text_area("Hva er problemet? (Kort)", placeholder="F.eks: TV-en virker ikke lenger...", height=100)
+        hendelsesdato = st.date_input("Når oppstod feilen?", value=date.today())
+        feil_beskrivelse = st.text_area("Hva er problemet?", placeholder="F.eks: Flyet var 4t forsinket, eller jeg fikk p-bot selv om jeg betalte...", height=100)
         
     if st.button("Generer klage automatisk 🚀", type="primary"):
         if not ENV_API_KEY:
@@ -170,61 +190,91 @@ with tab_auto:
             image = process_uploaded_file(uploaded_file)
             st.image(image, caption="Analyserer dokument...", width=300)
 
+            # --- HER ER DEN STORE OPPDATERINGEN FOR ALLE KATEGORIER ---
             prompt_auto = f"""
-            Du er en ekspert på norsk forbrukerrett.
-            OPPGAVE: Analyser bildet og skriv en klage.
-            BRUKERENS BESKRIVELSE: "{feil_beskrivelse}"
-            NAVN: {mitt_navn} ({min_epost})
-            ROLLE: {rolle}
+            Du er en streng og svært dyktig norsk forbrukeradvokat.
             
-            VIKTIG: Skriv flytende norsk brev. Ingen overskrifter som 'Beskrivelse'.
+            OPPGAVE:
+            1. SE PÅ BILDET: Identifiser hva slags dokument dette er (Kvittering? Flybillett? Parkeringsbot? Håndverkerfaktura?).
+            2. VELG RIKTIG LOVVERK basert på dokumenttypen (se listen under).
+            3. Skriv en formell klage.
+            
+            SAKSDATA:
+            - DATO FOR FEIL: {hendelsesdato}
+            - BRUKERENS BESKRIVELSE: "{feil_beskrivelse}"
+            - KLAGER: {mitt_navn} ({min_epost})
+            - ROLLE: {rolle}
+            
+            LOVVERK-BIBLIOTEK (VELG ETT):
+            
+            A) VAREKJØP (Elektronikk, Klær, Møbler):
+               - Lov: Forbrukerkjøpsloven.
+               - Argument: § 27 (5 års reklamasjonsfrist for ting ment å vare lenge, ellers 2 år). § 16 (Mangel). § 29 (Krav om retting).
+               
+            B) FLYREISE (Forsinkelse/Kansellering):
+               - Lov: EU-forordning 261/2004.
+               - Argument: Rett til standardkompensasjon (250-600 EUR) ved forsinkelse > 3 timer. Rett til forpleining.
+               
+            C) PARKERINGSBOT (Kontrollsanksjon):
+               - Lov: Parkeringsforskriften & Avtaleloven § 36.
+               - Argument: Var skiltingen tydelig? Var det rimelig? Henvis til § 36 om urimelige vilkår.
+               
+            D) HÅNDVERKERTJENESTER:
+               - Lov: Håndverkertjenesteloven.
+               - Argument: § 5 (Krav til fagmessig utførelse). § 22 (Reklamasjon). 5 års frist.
             
             FORMAT:
-            MAIL_EMNE: <Emne>
-            MAIL_MOTTAKER: <E-post>
+            MAIL_EMNE: <Kort og tydelig emne med referansenummer fra bildet hvis synlig>
+            MAIL_MOTTAKER: <Gjett kundeservice-epost basert på firmanavn>
             MAIL_BODY:
-            <Tekst>
+            <Selve teksten. Vær formell, vis til riktig paragraf/lov, men skriv flytende.>
             """
             
-            with st.spinner("Analyserer og skriver..."):
+            with st.spinner("Analyserer dokumenttype og lovverk..."):
                 raw_text = generate_with_gemini(prompt_auto, image)
                 emne, mottaker, body = parse_ai_output(raw_text, "Klage")
                 
                 st.success("✅ Klagen er klar!")
                 st.text_input("Mottaker (fra analyse)", value=mottaker)
-                st.text_area("Klagebrev", value=body, height=400)
+                st.text_area("Klagebrev", value=body, height=500)
                 
                 mailto = f"mailto:{mottaker}?subject={urllib.parse.quote(emne)}&body={urllib.parse.quote(body)}"
                 st.link_button("📧 Send e-post", mailto)
                 
         except Exception as e:
             st.error(f"En feil oppstod: {e}")
-            st.info("Tips: Sjekk 'Debug: Se modeller' i menyen for å se hvilke navn vi har tilgang til.")
-
 
 # --- TAB 2: MANUELL ---
 with tab_manuell:
     st.caption("Fyll ut skjemaet manuelt.")
-    kategori = st.selectbox("Kategori", list(COMPANY_DB.keys()))
-    company_list = COMPANY_DB.get(kategori, {})
+    
+    # Henter kategoriene fra den nye databasen vår
+    kategori = st.selectbox("Hva gjelder saken?", list(CATEGORY_INFO.keys()))
+    
+    # Henter info basert på valg
+    info = CATEGORY_INFO[kategori]
+    selskapsliste = info["selskaper"]
+    lov_hint = info["lov"] + ": " + info["hint"]
+    
+    st.info(f"💡 **Juridisk tips:** {lov_hint}")
     
     c1, c2 = st.columns(2)
     with c1:
-        options = sorted(list(company_list.keys())) + ["Annet"]
+        options = sorted(list(selskapsliste.keys())) + ["Annet"]
         valgt_selskap = st.selectbox("Velg selskap", options, index=None, placeholder="Velg...")
         
         motpart = valgt_selskap if valgt_selskap and valgt_selskap != "Annet" else ""
-        prefilled_email = company_list.get(valgt_selskap, "")
+        prefilled_email = selskapsliste.get(valgt_selskap, "")
         
         if valgt_selskap == "Annet" or not valgt_selskap:
             motpart = st.text_input("Selskapsnavn", value=motpart)
             prefilled_email = st.text_input("E-post (valgfritt)", value=prefilled_email)
     
     with c2:
-        tone = st.selectbox("Tone", ["Formell", "Bestemt", "Vennlig"])
+        tone = st.selectbox("Tone", ["Formell (Juridisk)", "Bestemt", "Vennlig"])
     
     beskrivelse_manuell = st.text_area("Hva har skjedd?", height=150)
-    krav_manuell = st.text_input("Hva krever du?")
+    krav_manuell = st.text_input("Hva krever du?", placeholder="F.eks. Erstatning, Ny vare...")
 
     if st.button("Opprett klage (Manuelt)"):
         if not motpart or not beskrivelse_manuell:
@@ -232,13 +282,18 @@ with tab_manuell:
             st.stop()
             
         prompt_manuell = f"""
-        Skriv en klage.
+        Skriv en reklamasjon/klage.
         Avsender: {mitt_navn}
         Mottaker: {motpart}
         Sak: {beskrivelse_manuell}
         Krav: {krav_manuell}
         Tone: {tone}
         Rolle: {rolle}
+        Kategori: {kategori}
+        
+        VIKTIG JURIDISK INFO DU SKAL BRUKE:
+        Lovverk: {info['lov']}
+        Argumentasjonstips: {info['hint']}
         
         FORMAT:
         MAIL_EMNE: <Emne>
