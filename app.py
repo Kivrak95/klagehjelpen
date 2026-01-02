@@ -21,10 +21,95 @@ if ENV_API_KEY:
 st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
 
 # ==========================================
-# 2. VERIFISERT KONTAKTDATABASE
+# 2. VERIFISERT KONTAKTDATABASE (SKJERPET!)
 # ==========================================
 VERIFIED_CONTACTS = {
-    # --- VAREKJØP ---
+    # --- FLYSELSKAP (Direktelenker til kravskjema) ---
+    "sas": {
+        "web": "https://www.sas.no/kundeservice/kontakt/skjemaer/sertifikat-forsinket-innstilt-fly",
+        "navn": "SAS",
+        "advarsel": "Bruk dette skjemaet for EU261-kompensasjon."
+    },
+    "norwegian": {
+        "web": "https://www.norwegian.com/no/reiseinformasjon/forsinkelser-og-kanselleringer/forsinkelser/",
+        "navn": "Norwegian",
+        "advarsel": "Norwegian krever at du velger refusjon/krav via denne portalen."
+    },
+    "widerøe": {
+        "web": "https://www.wideroe.no/hjelp-og-kontakt/flight-claim",
+        "navn": "Widerøe",
+        "advarsel": "Bruk Widerøes eget skjema for refusjon og erstatning."
+    },
+    "ryanair": {
+        "web": "https://onlineform.ryanair.com/no/no/eu-261",
+        "navn": "Ryanair",
+        "advarsel": "Ryanair godtar KUN sitt eget webskjema (EU261)."
+    },
+    "wizz": {
+        "web": "https://wizzair.com/en-gb/information-and-services/prices-discounts/refunds-and-compensations",
+        "navn": "Wizz Air",
+        "advarsel": "Du må logge inn på din Wizz-konto for å sende krav."
+    },
+    "klm": {
+        "web": "https://www.klm.no/en/information/refund-compensation",
+        "navn": "KLM",
+        "advarsel": "KLM har en egen portal for 'Refund and compensation'."
+    },
+    "lufthansa": {
+        "web": "https://www.lufthansa.com/no/en/feedback",
+        "navn": "Lufthansa",
+        "advarsel": "Velg 'Flight disruption' i skjemaet deres."
+    },
+    "air france": {
+        "web": "https://wwws.airfrance.no/en/claim",
+        "navn": "Air France",
+        "advarsel": "Bruk deres online 'Claim'-portal."
+    },
+    "finnair": {
+        "web": "https://www.finnair.com/no-en/customer-care/feedback-and-claims",
+        "navn": "Finnair",
+        "advarsel": "Velg 'Give feedback or make a claim'."
+    },
+    "british airways": {
+        "web": "https://www.britishairways.com/content/information/delayed-or-cancelled-flights/compensation",
+        "navn": "British Airways",
+        "advarsel": "Bruk skjemaet under 'Claim compensation'."
+    },
+    "icelandair": {
+        "web": "https://www.icelandair.com/support/contact-us/claims/",
+        "navn": "Icelandair",
+        "advarsel": "Direktelink til deres krav-portal."
+    },
+    "iberia": {
+        "web": "https://www.iberia.com/no/customer-relations/",
+        "navn": "Iberia",
+        "advarsel": "Gå via 'Customer Relations' -> 'Claims'."
+    },
+    "qatar": {
+        "web": "https://www.qatarairways.com/en/help.html#feedback",
+        "navn": "Qatar Airways",
+        "advarsel": "Velg 'Feedback' og deretter 'Claim'."
+    },
+    "emirates": {
+        "web": "https://www.emirates.com/no/english/help/forms/complaint/",
+        "navn": "Emirates",
+        "advarsel": "Bruk skjemaet for 'Complaint/Feedback'."
+    },
+    "turkish": {
+        "web": "https://www.turkishairlines.com/en-no/any-questions/customer-relations/feedback/",
+        "navn": "Turkish Airlines",
+        "advarsel": "Du må opprette en 'Feedback' sak."
+    },
+
+    # --- PARKERING (Direktelenker til klage) ---
+    "apcoa": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
+    "europark": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
+    "aimo": {"web": "https://www.aimopark.no/kontakt-oss/kontrollsanksjon/", "navn": "Aimo Park"},
+    "onepark": {"web": "https://onepark.no/klage/", "navn": "ONEPARK"},
+    "easypark": {"email": "kundeservice@easypark.no", "navn": "EasyPark"},
+    "riverty": {"web": "https://www.riverty.com/no-no/kundeservice/", "navn": "Riverty (Faktura)", "advarsel": "Gjelder ofte selve betalingen/fakturaen."},
+
+    # --- VAREKJØP (Her er e-post ofte OK, men web er bedre for noen) ---
     "elkjop": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
     "elkjøp": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
     "power": {"email": "kundeservice@power.no", "navn": "Power Kundeservice"},
@@ -33,34 +118,7 @@ VERIFIED_CONTACTS = {
     "ikea": {"email": "kundeservice.no@ikea.com", "navn": "IKEA Kundeservice"},
     "zalando": {"email": "service@zalando.no", "navn": "Zalando"},
     "apple": {"email": "contactus.no@euro.apple.com", "navn": "Apple Store"},
-    "xxl": {"email": "kundeservice@xxl.no", "navn": "XXL"},
-    
-    # --- FLYSELSKAP ---
-    "sas": {
-        "web": "https://www.sas.no/kundeservice/kontakt-oss/", 
-        "navn": "SAS (Scandinavian Airlines)",
-        "advarsel": "SAS krever ofte at du bruker deres webskjema for erstatning."
-    },
-    "norwegian": {
-        "web": "https://www.norwegian.no/kundeservice/kontakt-oss/",
-        "email": "post.reception@norwegian.com", 
-        "navn": "Norwegian",
-        "advarsel": "Norwegian behandler klager raskest via webskjema."
-    },
-    "widerøe": {"email": "support@wideroe.no", "navn": "Widerøe"},
-    
-    # --- PARKERING ---
-    "apcoa": {"email": "kundesenter@apcoa.no", "navn": "Apcoa Parking (Europark)"},
-    "europark": {"email": "kundesenter@apcoa.no", "navn": "Apcoa Parking (Europark)"},
-    "aimo": {"email": "kunde@aimopark.no", "navn": "Aimo Park"},
-    "easypark": {"email": "kundeservice@easypark.no", "navn": "EasyPark"},
-    "riverty": {"email": "parkering.no@riverty.com", "navn": "Riverty (Faktura)"},
-    
-    # --- ANNET ---
-    "telenor": {"email": "telenor.klager@telenor.no", "navn": "Telenor"},
-    "telia": {"email": "kundesenter@telia.no", "navn": "Telia"},
-    "vy": {"email": "tog@vy.no", "navn": "Vy"},
-    "ruter": {"email": "post@ruter.no", "navn": "Ruter"}
+    "xxl": {"email": "kundeservice@xxl.no", "navn": "XXL"}
 }
 
 CATEGORY_HINTS = {
@@ -79,6 +137,8 @@ def get_best_contact_method(company_name_from_ai):
     if not company_name_from_ai:
         return None
     search_term = company_name_from_ai.lower().strip()
+    
+    # Eksakt søk eller delvis match
     for key, info in VERIFIED_CONTACTS.items():
         if key in search_term:
             return info
@@ -228,8 +288,9 @@ with tab_manuell:
     
     col_sel, col_det = st.columns(2)
     with col_sel:
-        sorted_companies = sorted([v["navn"] for k, v in VERIFIED_CONTACTS.items()])
-        valgt_selskap_navn = st.selectbox("Velg selskap (valgfritt)", ["Annet / Skriv selv"] + sorted_companies)
+        # Sortert liste av unike navn fra databasen
+        unique_companies = sorted(list(set([v["navn"] for k, v in VERIFIED_CONTACTS.items()])))
+        valgt_selskap_navn = st.selectbox("Velg selskap (valgfritt)", ["Annet / Skriv selv"] + unique_companies)
         
         custom_company = ""
         if valgt_selskap_navn == "Annet / Skriv selv":
@@ -242,7 +303,9 @@ with tab_manuell:
     if st.button("Skriv klage (Manuelt)"):
         company_for_prompt = custom_company if custom_company else valgt_selskap_navn
         
+        # Finn info fra DB for manuell modus
         found_info = None
+        # Må søke på navn her siden dropdown bruker navn, ikke nøkler
         for k, v in VERIFIED_CONTACTS.items():
             if v["navn"] == valgt_selskap_navn:
                 found_info = v
@@ -250,7 +313,7 @@ with tab_manuell:
         
         forced_email = found_info.get("email", "") if found_info else ""
 
-        # Nullstiller filnavn siden vi kjører manuelt
+        # Nullstiller filnavn
         st.session_state.uploaded_filename = None
 
         prompt_man = f"""
@@ -285,17 +348,17 @@ if st.session_state.generated_complaint:
     data = st.session_state.generated_complaint
     detected_name = st.session_state.detected_company
     
-    # 1. SLÅ OPP I DATABASEN
+    # 1. SLÅ OPP I DATABASEN (Vasker og sjekker)
     contact_info = get_best_contact_method(detected_name)
     
     st.markdown("---")
     st.subheader("📍 Mottaker & Sendingsmetode")
     
     final_email = ""
-    warning_msg = ""
     web_link = ""
 
     if contact_info:
+        # Vi fant selskapet i vår "Gull-liste"
         st.success(f"✅ Identifisert selskap: **{contact_info.get('navn', detected_name)}**")
         
         if "advarsel" in contact_info:
@@ -304,38 +367,48 @@ if st.session_state.generated_complaint:
         if "web" in contact_info:
             web_link = contact_info["web"]
             st.info(f"🌐 Dette selskapet bruker primært webskjema/portal.")
-            st.link_button(f"Gå til {detected_name} sitt klageskjema ↗️", web_link)
-            st.caption("Kopier teksten nedenfor og lim inn i skjemaet deres.")
+            # Viser stor, tydelig knapp til riktig skjema
+            st.link_button(f"Gå til {contact_info['navn']} sitt klageskjema ↗️", web_link)
+            
+            # Instruks til brukeren
+            st.caption("👇 1. Kopier teksten under.")
+            st.caption("👉 2. Trykk på knappen over for å lime det inn i skjemaet deres.")
             
             if "email" in contact_info:
                 final_email = contact_info["email"]
-                st.caption(f"(Alternativ e-post funnet: {final_email})")
+                st.markdown(f"*(Alternativ e-post funnet: `{final_email}` - men webskjema anbefales)*")
         else:
             final_email = contact_info.get("email", "")
             
     else:
+        # Fant ikke i DB -> Bruk AI-gjetning
         st.warning(f"⚠️ Fant ikke '{detected_name}' i vår verifiserte database. Sjekk at e-posten under er riktig.")
         final_email = data.get("mottaker_epost_gjetning", "")
 
-    # 2. UI FOR Å ENDRE MOTTAKER
-    col_rec_ui, col_subj_ui = st.columns([1, 1])
-    with col_rec_ui:
-        user_email = st.text_input("Mottaker e-post (kan endres):", value=final_email)
-    with col_subj_ui:
-        user_subject = st.text_input("Emnefelt:", value=data.get("emne", ""))
+    # 2. UI FOR Å ENDRE MOTTAKER (Vises kun hvis relevant)
+    if not web_link:
+        col_rec_ui, col_subj_ui = st.columns([1, 1])
+        with col_rec_ui:
+            user_email = st.text_input("Mottaker e-post (kan endres):", value=final_email)
+        with col_subj_ui:
+            user_subject = st.text_input("Emnefelt:", value=data.get("emne", ""))
+    else:
+        # Hvis webskjema, trenger vi ikke vise e-post feltet like prominent, men emne er greit å ha
+        user_subject = st.text_input("Emnefelt (til skjemaet):", value=data.get("emne", ""))
+        user_email = final_email # Beholder verdien i bakgrunnen
 
     # 3. SELVE BREVET
     st.markdown("### 📝 Klagebrev")
     user_body = st.text_area("Innhold (Redigerbar):", value=data.get("brødtekst", ""), height=400)
     
-    # 4. SENDING / KOPIERING
+    # 4. SJEKKLISTE & KNAPPER
     st.markdown("---")
     
     # SJEKKLISTE
     st.subheader("✅ Sjekkliste før sending")
     c1, c2, c3 = st.columns(3)
     
-    check_rec = c1.checkbox("Mottaker-adresse er korrekt")
+    check_rec = c1.checkbox("Mottaker/Skjema er korrekt")
     check_txt = c2.checkbox("Mine detaljer stemmer")
     check_att = c3.checkbox("Jeg husker vedlegg")
     
@@ -343,10 +416,10 @@ if st.session_state.generated_complaint:
     col_btn, col_copy = st.columns([1, 1])
     
     with col_btn:
-        if user_email and "@" in user_email:
+        if web_link:
+             st.info("👈 Kopier teksten til høyre, og bruk 'Gå til klageskjema'-knappen lenger opp.")
+        elif user_email and "@" in user_email:
             if check_rec and check_txt and check_att:
-                
-                # --- HER ER ENDRINGEN: PÅMINNELSE OM VEDLEGG ---
                 if st.session_state.uploaded_filename:
                     st.info(f"📎 **Husk:** Legg ved filen **{st.session_state.uploaded_filename}** manuelt i e-posten.", icon="⚠️")
                 else:
@@ -358,12 +431,10 @@ if st.session_state.generated_complaint:
                 
                 st.link_button("📧 Åpne i E-postprogram", mailto, type="primary", use_container_width=True)
             else:
-                st.caption("🛑 Huk av alle tre punktene i sjekklisten for å aktivere knappen.")
-        elif web_link:
-             st.info("👈 Bruk knappen lenger opp for å gå til webskjemaet.")
+                st.caption("🛑 Huk av alle tre punktene i sjekklisten for å aktivere e-postknappen.")
         else:
             st.warning("Mangler e-postadresse.")
 
     with col_copy:
         st.code(user_body, language=None)
-        st.caption("👆 Trykk ikonet i hjørnet for å kopiere teksten.")
+        # BOKSEN MED "TRYKK HER FOR Å KOPIERE" ER NÅ FJERNET
