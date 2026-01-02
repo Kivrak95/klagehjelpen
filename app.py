@@ -2,7 +2,7 @@ import os
 import re
 import time
 import urllib.parse
-from datetime import date, timedelta
+from datetime import date
 from dotenv import load_dotenv
 from PIL import Image
 import fitz  # PyMuPDF
@@ -18,6 +18,23 @@ load_dotenv()
 ENV_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
+
+# --- INITIALISER HUKOMMELSE (SESSION STATE) ---
+# Dette sørger for at teksten ikke forsvinner når du trykker på knapper
+if "auto_body" not in st.session_state:
+    st.session_state.auto_body = None
+if "auto_subject" not in st.session_state:
+    st.session_state.auto_subject = None
+if "auto_email" not in st.session_state:
+    st.session_state.auto_email = None
+
+if "man_body" not in st.session_state:
+    st.session_state.man_body = None
+if "man_subject" not in st.session_state:
+    st.session_state.man_subject = None
+if "man_email" not in st.session_state:
+    st.session_state.man_email = None
+
 
 # --- DATABASE MED JURIDISK INFO ---
 CATEGORY_INFO = {
@@ -68,7 +85,6 @@ CATEGORY_INFO = {
 def clean_text(text: str) -> str:
     text = text.replace("**", "").replace("##", "").replace("__", "").replace("*", "").replace("#", "")
     text = text.replace("Problembeskrivelse:", "").replace("Juridisk grunnlag:", "")
-    # Fjerner placeholders hvis AI finner på å skrive dem
     text = text.replace("[Ditt Navn]", "").replace("[Dato]", "")
     return text.strip()
 
@@ -114,7 +130,6 @@ def generate_with_gemini(prompt: str, image=None) -> str:
         response = model.generate_content(inputs)
         return response.text
     except Exception as e:
-        # Fallback
         try:
             fallback = "gemini-2.0-flash-001"
             model = genai.GenerativeModel(fallback)
@@ -166,7 +181,6 @@ tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokument)", "✍️ M
 
 # --- TAB 1: AUTOMATISK ---
 with tab_auto:
-    # Personvern-disclaimer rett ved opplasting
     st.info("🔒 **Trygg opplasting:** Dokumentet ditt analyseres kun for å skrive teksten og lagres ikke.", icon="🛡️")
     
     col_upload, col_info = st.columns([1, 1])
@@ -176,12 +190,9 @@ with tab_auto:
         
     with col_info:
         hendelsesdato = st.date_input("Når skjedde dette?", value=date.today())
-        feil_beskrivelse = st.text_area("Kort beskrivelse av problemet", placeholder="F.eks: TV-en slår seg ikke på, eller flyet var 4 timer forsinket...", height=100)
-        
-        # Ønsket løsning - nytt felt
+        feil_beskrivelse = st.text_area("Kort beskrivelse av problemet", placeholder="F.eks: TV-en slår seg ikke på...", height=100)
         losning = st.selectbox("Hva ønsker du?", ["Kostnadsfri reparasjon", "Ny vare (omlevering)", "Pengene tilbake (heving)", "Prisavslag", "Erstatning", "Usikker - la AI vurdere"])
 
-    # tone-velger
     tone = st.radio("Velg tonefall:", ["Saklig og bestemt (Anbefalt)", "Vennlig", "Veldig formell/juridisk"], horizontal=True)
 
     if st.button("Generer klageutkast 🚀", type="primary"):
@@ -194,8 +205,7 @@ with tab_auto:
 
         try:
             image = process_uploaded_file(uploaded_file)
-            st.image(image, caption="Analyserer dokument...", width=300)
-
+            
             # --- PROMPT ---
             prompt_auto = f"""
             Du er en profesjonell, norsk klagehjelper. Din oppgave er å skrive et utkast til en klage på vegne av brukeren.
@@ -219,7 +229,6 @@ with tab_auto:
             
             VIKTIG: 
             - Sett en svarfrist på 14 dager.
-            - Hvis flyselskap: Nevn at hvis de krever webskjema, er denne teksten grunnlaget for det som limes inn der.
             
             FORMAT:
             MAIL_EMNE: <Emne>
@@ -230,53 +239,55 @@ with tab_auto:
             
             with st.spinner("Juristen analyserer saken..."):
                 raw_text = generate_with_gemini(prompt_auto, image)
-                emne, mottaker, body = parse_ai_output(raw_text, "Klage")
+                em, rec, bd = parse_ai_output(raw_text, "Klage")
                 
-                # --- RESULTATVISNING ---
-                st.markdown("### 📝 Ditt klageutkast")
-                
-                # Redigerbar mottaker
-                st.caption("👇 Sjekk at e-posten stemmer. AI kan gjette feil.")
-                col_rec, col_subj = st.columns([1, 1])
-                with col_rec:
-                    final_email = st.text_input("Mottaker e-post:", value=mottaker)
-                with col_subj:
-                    final_subject = st.text_input("Emnefelt:", value=emne)
-
-                # Viser teksten i en kodeblokk for enkel kopiering
-                st.markdown("**Innhold (Kopier og lim inn i e-posten din):**")
-                st.code(body, language=None)
-                
-                # --- SJEKKLISTE FØR SENDING ---
-                st.markdown("---")
-                st.subheader("✅ Sjekkliste før du sender")
-                
-                c1, c2, c3 = st.columns(3)
-                check_rec = c1.checkbox("Mottaker e-post er korrekt")
-                check_info = c2.checkbox("Mine detaljer stemmer")
-                check_att = c3.checkbox("Jeg husker vedlegg")
-                
-                if check_rec and check_info and check_att:
-                    # Bygger mailto-link
-                    safe_subj = urllib.parse.quote(final_subject)
-                    safe_body = urllib.parse.quote(body)
-                    mailto = f"mailto:{final_email}?subject={safe_subj}&body={safe_body}"
-                    
-                    st.success("Alt klart! Lykke til med klagen.")
-                    st.link_button("📧 Åpne i E-postprogram", mailto, type="primary")
-                else:
-                    st.caption("⚠️ Huk av sjekkpunktene over for å aktivere send-knappen.")
+                # LAGRE I SESSION STATE
+                st.session_state.auto_subject = em
+                st.session_state.auto_email = rec
+                st.session_state.auto_body = bd
                 
         except Exception as e:
             st.error(f"En feil oppstod: {e}")
+
+    # --- VIS RESULTAT HVIS DET FINNES I MINNET ---
+    if st.session_state.auto_body:
+        st.markdown("### 📝 Ditt klageutkast")
+        st.caption("👇 Sjekk at e-posten stemmer. AI kan gjette feil.")
+        
+        col_rec, col_subj = st.columns([1, 1])
+        with col_rec:
+            # Vi bruker session state key for å beholde endringer
+            final_email = st.text_input("Mottaker e-post:", value=st.session_state.auto_email)
+        with col_subj:
+            final_subject = st.text_input("Emnefelt:", value=st.session_state.auto_subject)
+
+        st.markdown("**Innhold (Kopier og lim inn i e-posten din):**")
+        st.code(st.session_state.auto_body, language=None)
+        
+        st.markdown("---")
+        st.subheader("✅ Sjekkliste før du sender")
+        
+        c1, c2, c3 = st.columns(3)
+        check_rec = c1.checkbox("Mottaker e-post er korrekt")
+        check_info = c2.checkbox("Mine detaljer stemmer")
+        check_att = c3.checkbox("Jeg husker vedlegg")
+        
+        if check_rec and check_info and check_att:
+            safe_subj = urllib.parse.quote(final_subject)
+            safe_body = urllib.parse.quote(st.session_state.auto_body)
+            mailto = f"mailto:{final_email}?subject={safe_subj}&body={safe_body}"
+            
+            st.success("Alt klart! Lykke til med klagen.")
+            st.link_button("📧 Åpne i E-postprogram", mailto, type="primary")
+        else:
+            st.caption("⚠️ Huk av sjekkpunktene over for å aktivere send-knappen.")
+
 
 # --- TAB 2: MANUELL ---
 with tab_manuell:
     st.info("Her kan du velge kategori og få hjelp med lovparagrafene selv om du ikke laster opp bilde.")
     
     kategori = st.selectbox("Hva gjelder saken?", list(CATEGORY_INFO.keys()))
-    
-    # Henter info
     info = CATEGORY_INFO[kategori]
     selskapsliste = info["selskaper"]
     lov_hint = info["lov"] + ": " + info["hint"]
@@ -287,7 +298,6 @@ with tab_manuell:
     with c1:
         options = sorted(list(selskapsliste.keys())) + ["Annet"]
         valgt_selskap = st.selectbox("Velg motpart", options, index=None, placeholder="Velg fra listen...")
-        
         motpart = valgt_selskap if valgt_selskap and valgt_selskap != "Annet" else ""
         prefilled_email = selskapsliste.get(valgt_selskap, "")
         
@@ -295,14 +305,13 @@ with tab_manuell:
             motpart = st.text_input("Navn på selskap", value=motpart)
             prefilled_email = st.text_input("E-post (hvis du har)", value=prefilled_email)
         else:
-            # Hvis selskap er valgt fra listen, vis e-posten men gjør den redigerbar
              prefilled_email = st.text_input("E-post til mottaker", value=prefilled_email)
     
     with c2:
         tone_man = st.selectbox("Ønsket tone", ["Saklig (Anbefalt)", "Veldig formell", "Vennlig"])
         losning_man = st.selectbox("Ditt krav", ["Reparasjon", "Ny vare", "Pengene tilbake", "Erstatning"])
     
-    beskrivelse_manuell = st.text_area("Beskriv hva som har skjedd", height=150, placeholder="F.eks: Jeg kjøpte en jakke for 2 måneder siden, nå har glidelåsen røket...")
+    beskrivelse_manuell = st.text_area("Beskriv hva som har skjedd", height=150, placeholder="F.eks: Jeg kjøpte en jakke for 2 måneder siden...")
 
     if st.button("Skriv klage (Manuelt)"):
         if not motpart or not beskrivelse_manuell:
@@ -336,23 +345,30 @@ with tab_manuell:
                 res = generate_with_gemini(prompt_manuell)
                 em, rec, bd = parse_ai_output(res, "Klage")
                 
-                st.markdown("### 📝 Utkast")
+                # LAGRE I SESSION STATE
+                st.session_state.man_subject = em
+                st.session_state.man_email = rec
+                st.session_state.man_body = bd
                 
-                final_email_man = st.text_input("Mottaker:", value=rec, key="rec_man")
-                final_subj_man = st.text_input("Emne:", value=em, key="subj_man")
-                
-                st.markdown("**Kopier teksten under:**")
-                st.code(bd, language=None)
-                
-                st.markdown("---")
-                c1m, c2m = st.columns(2)
-                check_ok = c1m.checkbox("Teksten ser bra ut", key="check_man")
-                
-                if check_ok:
-                    safe_s = urllib.parse.quote(final_subj_man)
-                    safe_b = urllib.parse.quote(bd)
-                    mail_link = f"mailto:{final_email_man}?subject={safe_s}&body={safe_b}"
-                    st.link_button("📧 Gjør klar e-post", mail_link, type="primary")
-                    
             except Exception as e:
                 st.error(f"Feil: {e}")
+
+    # --- VIS RESULTAT MANUELL ---
+    if st.session_state.man_body:
+        st.markdown("### 📝 Utkast")
+        
+        final_email_man = st.text_input("Mottaker:", value=st.session_state.man_email, key="rec_man_input")
+        final_subj_man = st.text_input("Emne:", value=st.session_state.man_subject, key="subj_man_input")
+        
+        st.markdown("**Kopier teksten under:**")
+        st.code(st.session_state.man_body, language=None)
+        
+        st.markdown("---")
+        c1m, c2m = st.columns(2)
+        check_ok = c1m.checkbox("Teksten ser bra ut", key="check_man")
+        
+        if check_ok:
+            safe_s = urllib.parse.quote(final_subj_man)
+            safe_b = urllib.parse.quote(st.session_state.man_body)
+            mail_link = f"mailto:{final_email_man}?subject={safe_s}&body={safe_b}"
+            st.link_button("📧 Gjør klar e-post", mail_link, type="primary")
