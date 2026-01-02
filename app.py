@@ -146,6 +146,8 @@ if "generated_complaint" not in st.session_state:
     st.session_state.generated_complaint = None
 if "detected_company" not in st.session_state:
     st.session_state.detected_company = None
+if "uploaded_filename" not in st.session_state:
+    st.session_state.uploaded_filename = None
 
 tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokument)", "✍️ Manuell (Skriv selv)"])
 
@@ -169,6 +171,9 @@ with tab_auto:
             st.stop()
 
         try:
+            # Lagre filnavn for senere påminnelse
+            st.session_state.uploaded_filename = uploaded_file.name
+
             image_input = None
             text_input = ""
             if uploaded_file.type == "application/pdf":
@@ -244,6 +249,9 @@ with tab_manuell:
                 break
         
         forced_email = found_info.get("email", "") if found_info else ""
+
+        # Nullstiller filnavn siden vi kjører manuelt
+        st.session_state.uploaded_filename = None
 
         prompt_man = f"""
         Skriv en klage.
@@ -323,7 +331,7 @@ if st.session_state.generated_complaint:
     # 4. SENDING / KOPIERING
     st.markdown("---")
     
-    # --- HER ER DEN DETALJERTE SJEKKLISTEN TILBAKE ---
+    # SJEKKLISTE
     st.subheader("✅ Sjekkliste før sending")
     c1, c2, c3 = st.columns(3)
     
@@ -336,15 +344,21 @@ if st.session_state.generated_complaint:
     
     with col_btn:
         if user_email and "@" in user_email:
-            # Knappen blir kun aktiv (synlig som link) når alt er huket av
             if check_rec and check_txt and check_att:
+                
+                # --- HER ER ENDRINGEN: PÅMINNELSE OM VEDLEGG ---
+                if st.session_state.uploaded_filename:
+                    st.info(f"📎 **Husk:** Legg ved filen **{st.session_state.uploaded_filename}** manuelt i e-posten.", icon="⚠️")
+                else:
+                    st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
+
                 safe_s = urllib.parse.quote(user_subject)
                 safe_b = urllib.parse.quote(user_body)
                 mailto = f"mailto:{user_email}?subject={safe_s}&body={safe_b}"
-                st.success("Alt klart!")
+                
                 st.link_button("📧 Åpne i E-postprogram", mailto, type="primary", use_container_width=True)
             else:
-                st.caption("🛑 Huk av alle tre punktene i sjekklisten for å sende.")
+                st.caption("🛑 Huk av alle tre punktene i sjekklisten for å aktivere knappen.")
         elif web_link:
              st.info("👈 Bruk knappen lenger opp for å gå til webskjemaet.")
         else:
