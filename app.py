@@ -84,15 +84,10 @@ def process_uploaded_file(uploaded_file):
 def generate_with_gemini(prompt: str, image=None) -> str:
     genai.configure(api_key=ENV_API_KEY)
     
-    # FORSØK 1: Vi prøver den mest stabile versjonen først
-    # 'gemini-1.5-flash-001' er ofte mer stabil enn aliaset 'flash'
-    model_name = "gemini-1.5-flash-001"
+    # --- ENDRET HER ---
+    # Vi bruker 'gemini-2.0-flash' fordi den står på listen din.
+    model_name = "gemini-2.0-flash"
     
-    # Hvis vi ikke har bilde, kan vi bruke 'gemini-pro' som fallback hvis flash feiler
-    if image is None:
-        # Men vi prøver flash først siden den er billigst
-        pass
-
     try:
         model = genai.GenerativeModel(model_name)
         inputs = [prompt]
@@ -103,17 +98,16 @@ def generate_with_gemini(prompt: str, image=None) -> str:
         return response.text
 
     except Exception as e:
-        # Hvis det feiler, prøv "latest"-varianten som backup
+        # Fallback hvis 2.0 feiler, prøver vi 2.0-flash-001 som også stod på listen
         try:
-            fallback_model = "gemini-1.5-flash-latest"
-            model = genai.GenerativeModel(fallback_model)
+            fallback = "gemini-2.0-flash-001"
+            model = genai.GenerativeModel(fallback)
             inputs = [prompt]
             if image:
                 inputs.append(image)
             response = model.generate_content(inputs)
             return response.text
         except:
-            # Hvis begge feiler, kast den opprinnelige feilen
             raise e
 
 # ==========================================
@@ -131,7 +125,7 @@ with st.sidebar:
     with st.expander("🧡 Vipps en gave"):
         st.markdown("**Vipps:** `920 573 95`")
 
-    # --- DEBUG VERKTØY (NY!) ---
+    # --- DEBUG VERKTØY ---
     st.markdown("---")
     with st.expander("🛠️ Debug: Se modeller"):
         if st.button("List opp tilgjengelige modeller"):
