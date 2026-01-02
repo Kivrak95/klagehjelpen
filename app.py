@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import random
 import urllib.parse
 from datetime import date
 from dotenv import load_dotenv
@@ -76,9 +77,9 @@ VERIFIED_CONTACTS = {
     "rema": {"web": "https://www.rema.no/kundeservice/", "navn": "Rema 1000"},
 
     # --- FLYSELSKAP (Mange krever webskjema!) ---
-    "sas": {"web": "https://www.sas.no/kundeservice/kontakt/skjemaer/", "navn": "SAS", "advarsel": "SAS krever bruk av webskjema for erstatning."},
-    "norwegian": {"web": "https://www.norwegian.com/no/reiseinformasjon/forsinkelser-og-kanselleringer/forsinkelser/", "navn": "Norwegian"},
-    "widerøe": {"web": "https://www.wideroe.no/hjelp-og-kontakt/flight-claim", "navn": "Widerøe"},
+    "sas": {"web": "https://www.sas.no/kundeservice/kontakt/skjemaer/sertifikat-forsinket-innstilt-fly", "navn": "SAS", "advarsel": "Bruk dette skjemaet for EU261-kompensasjon."},
+    "norwegian": {"web": "https://www.norwegian.com/no/reiseinformasjon/forsinkelser-og-kanselleringer/forsinkelser/", "navn": "Norwegian", "advarsel": "Norwegian krever at du velger refusjon/krav via denne portalen."},
+    "widerøe": {"web": "https://www.wideroe.no/hjelp-og-kontakt/flight-claim", "navn": "Widerøe", "advarsel": "Bruk Widerøes eget skjema for refusjon og erstatning."},
     "ryanair": {"web": "https://onlineform.ryanair.com/no/no/eu-261", "navn": "Ryanair", "advarsel": "Ryanair godtar KUN sitt eget skjema."},
     "wizz": {"web": "https://wizzair.com/en-gb/information-and-services/prices-discounts/refunds-and-compensations", "navn": "Wizz Air"},
     "klm": {"web": "https://www.klm.no/en/information/refund-compensation", "navn": "KLM"},
@@ -135,11 +136,8 @@ CATEGORY_HINTS = {
 def get_best_contact_method(company_name_from_ai):
     if not company_name_from_ai: return None
     search_term = company_name_from_ai.lower().strip()
-    
-    # Eksakt søk eller delvis match i vår store database
     for key, info in VERIFIED_CONTACTS.items():
-        if key in search_term:
-            return info
+        if key in search_term: return info
     return None
 
 def extract_pdf_data(uploaded_file):
@@ -222,6 +220,20 @@ if "detected_company" not in st.session_state:
 if "uploaded_filenames" not in st.session_state: 
     st.session_state.uploaded_filenames = []
 
+# Random placeholder logic
+if "random_placeholder" not in st.session_state:
+    eksempler = [
+        "F.eks: TV-en slår seg ikke på lenger, og det er striper over skjermen...",
+        "F.eks: Flyet fra Gardermoen til London var 4 timer forsinket, og vi fikk ingen matkuponger...",
+        "F.eks: Glidelåsen på vinterjakken røk etter bare 2 måneders bruk...",
+        "F.eks: Jeg fikk parkeringsbot selv om jeg hadde betalt billett via appen...",
+        "F.eks: Sofaen har fått en nedsynk i setet som ikke går bort...",
+        "F.eks: Håndverkeren møtte ikke opp til avtalt tid for befaring...",
+        "F.eks: Matkassen ble levert med knuste egg og dårlig frukt...",
+        "F.eks: Batteriet på mobilen lader ikke lenger over 50%..."
+    ]
+    st.session_state.random_placeholder = random.choice(eksempler)
+
 tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokumenter)", "✍️ Manuell (Skriv selv)"])
 
 # --- TAB 1: AUTOMATISK ---
@@ -238,7 +250,13 @@ with tab_auto:
         
     with col_info:
         hendelsesdato = st.date_input("Når skjedde dette?", value=date.today())
-        feil_beskrivelse = st.text_area("Kort beskrivelse av problemet", height=100)
+        
+        feil_beskrivelse = st.text_area(
+            "Kort beskrivelse av problemet", 
+            height=100, 
+            placeholder=st.session_state.random_placeholder
+        )
+        
         losning = st.selectbox("Ønsket løsning", ["Kostnadsfri reparasjon", "Ny vare (omlevering)", "Pengene tilbake (heving)", "Prisavslag", "Erstatning", "Usikker - la AI vurdere"])
 
     tone = st.radio("Tonefall:", ["Saklig (Anbefalt)", "Vennlig", "Veldig formell"], horizontal=True)
@@ -251,6 +269,7 @@ with tab_auto:
             st.warning("⚠️ Tips: Fyll ut navnet ditt i menyen til venstre for best resultat.")
 
         try:
+            # Lagre filnavn for senere påminnelse
             st.session_state.uploaded_filenames = [f.name for f in uploaded_files]
 
             all_images = []
@@ -280,6 +299,10 @@ with tab_auto:
             VIKTIG OM SPRÅK:
             - Hele klagebrevet SKAL skrives på NORSK (Bokmål).
             - Oversett all info fra dokumentene til norsk.
+            
+            VIKTIG OM SIGNATUR (UNNGÅ DOBBEL TEKST):
+            - Avslutt brevet kun én gang slik: "Med vennlig hilsen, [Ditt Navn]".
+            - IKKE legg til navn, adresse eller e-post på nytt under signaturen hvis det allerede står der.
             
             DATA:
             - DATO: {hendelsesdato}
@@ -320,7 +343,6 @@ with tab_manuell:
     
     col_sel, col_det = st.columns(2)
     with col_sel:
-        # Sortert liste av unike navn fra den STORE databasen
         unique_companies = sorted(list(set([v["navn"] for k, v in VERIFIED_CONTACTS.items()])))
         valgt_selskap_navn = st.selectbox("Velg selskap (valgfritt)", ["Annet / Skriv selv"] + unique_companies)
         
@@ -329,7 +351,11 @@ with tab_manuell:
             custom_company = st.text_input("Skriv inn selskapsnavn")
     
     with col_det:
-        desc_man = st.text_area("Hva har skjedd?", height=100)
+        desc_man = st.text_area(
+            "Hva har skjedd?", 
+            height=100,
+            placeholder="F.eks: Jeg kjøpte en jakke for 2 måneder siden, og nå har sømmen gått opp..."
+        )
         req_man = st.text_input("Hva krever du?")
 
     if st.button("Skriv klage (Manuelt)"):
@@ -352,7 +378,10 @@ with tab_manuell:
         Krav: {req_man}
         Lovverk: {CATEGORY_HINTS[kategori_man]}
         
-        VIKTIG: Hele teksten skal være på norsk bokmål.
+        VIKTIG: 
+        - Hele teksten skal være på norsk bokmål.
+        - Avslutt med "Med vennlig hilsen, [Navn]".
+        - IKKE gjenta kontaktinfo to ganger i slutten.
         
         OUTPUT FORMAT (JSON):
         {{
@@ -438,34 +467,41 @@ if st.session_state.generated_complaint:
     st.markdown("---")
     
     st.subheader("✅ Sjekkliste før sending")
-    c1, c2, c3 = st.columns(3)
+    
+    c1, c2 = st.columns(2)
     check_rec = c1.checkbox("Mottaker/Skjema er korrekt")
     check_txt = c2.checkbox("Mine detaljer stemmer")
-    check_att = c3.checkbox("Jeg husker vedlegg")
+    
+    # Knappen er alltid synlig, men 'disabled' til sjekklisten er ok
+    is_ready = check_rec and check_txt
     
     st.markdown("---")
-    col_btn, col_copy = st.columns([1, 1])
     
-    with col_btn:
-        if web_link:
+    if web_link:
              st.info("👈 Kopier teksten til høyre, og bruk 'Gå til klageskjema'-knappen lenger opp.")
-        elif user_email and "@" in user_email:
-            if check_rec and check_txt and check_att:
-                if st.session_state.uploaded_filenames:
-                    files_str = ", ".join(st.session_state.uploaded_filenames)
-                    st.info(f"📎 **Husk:** Legg ved disse filene manuelt i e-posten: **{files_str}**", icon="⚠️")
-                else:
-                    st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
-
-                safe_s = urllib.parse.quote(user_subject)
-                safe_b = urllib.parse.quote(user_body)
-                mailto = f"mailto:{user_email}?subject={safe_s}&body={safe_b}"
-                
-                st.link_button("📧 Åpne i E-postprogram", mailto, type="primary", use_container_width=True)
-            else:
-                st.caption("🛑 Huk av alle tre punktene i sjekklisten for å aktivere e-postknappen.")
+    elif user_email and "@" in user_email:
+        
+        # VIS PÅMINNELSE OM VEDLEGG ALLTID
+        if st.session_state.uploaded_filenames:
+            files_str = ", ".join(st.session_state.uploaded_filenames)
+            st.info(f"📎 **Husk:** Legg ved disse filene manuelt i e-posten: **{files_str}**", icon="⚠️")
         else:
-            st.warning("Mangler e-postadresse.")
+            st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
 
-    with col_copy:
-        st.code(user_body, language=None)
+        safe_s = urllib.parse.quote(user_subject)
+        safe_b = urllib.parse.quote(user_body)
+        mailto = f"mailto:{user_email}?subject={safe_s}&body={safe_b}"
+        
+        st.link_button(
+            "📧 Åpne i E-postprogram", 
+            mailto, 
+            type="primary", 
+            use_container_width=True,
+            disabled=not is_ready 
+        )
+        
+        if not is_ready:
+            st.caption("🛑 Du må huke av sjekkpunktene over for å aktivere knappen.")
+            
+    else:
+        st.warning("Mangler e-postadresse.")
