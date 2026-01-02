@@ -21,10 +21,10 @@ if ENV_API_KEY:
 st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
 
 # ==========================================
-# 2. DATABASER OG KONSTANTER
+# 2. VERIFISERT KONTAKTDATABASE
 # ==========================================
 VERIFIED_CONTACTS = {
-    # --- FLYSELSKAP (Direktelenker til kravskjema) ---
+    # --- FLYSELSKAP ---
     "sas": {
         "web": "https://www.sas.no/kundeservice/kontakt/skjemaer/sertifikat-forsinket-innstilt-fly",
         "navn": "SAS",
@@ -60,11 +60,56 @@ VERIFIED_CONTACTS = {
         "navn": "Lufthansa",
         "advarsel": "Velg 'Flight disruption' i skjemaet deres."
     },
-    # ... (resten av listen er lik som før)
+    "air france": {
+        "web": "https://wwws.airfrance.no/en/claim",
+        "navn": "Air France",
+        "advarsel": "Bruk deres online 'Claim'-portal."
+    },
+    "finnair": {
+        "web": "https://www.finnair.com/no-en/customer-care/feedback-and-claims",
+        "navn": "Finnair",
+        "advarsel": "Velg 'Give feedback or make a claim'."
+    },
+    "british airways": {
+        "web": "https://www.britishairways.com/content/information/delayed-or-cancelled-flights/compensation",
+        "navn": "British Airways",
+        "advarsel": "Bruk skjemaet under 'Claim compensation'."
+    },
+    "icelandair": {
+        "web": "https://www.icelandair.com/support/contact-us/claims/",
+        "navn": "Icelandair",
+        "advarsel": "Direktelink til deres krav-portal."
+    },
+    "iberia": {
+        "web": "https://www.iberia.com/no/customer-relations/",
+        "navn": "Iberia",
+        "advarsel": "Gå via 'Customer Relations' -> 'Claims'."
+    },
+    "qatar": {
+        "web": "https://www.qatarairways.com/en/help.html#feedback",
+        "navn": "Qatar Airways",
+        "advarsel": "Velg 'Feedback' og deretter 'Claim'."
+    },
+    "emirates": {
+        "web": "https://www.emirates.com/no/english/help/forms/complaint/",
+        "navn": "Emirates",
+        "advarsel": "Bruk skjemaet for 'Complaint/Feedback'."
+    },
+    "turkish": {
+        "web": "https://www.turkishairlines.com/en-no/any-questions/customer-relations/feedback/",
+        "navn": "Turkish Airlines",
+        "advarsel": "Du må opprette en 'Feedback' sak."
+    },
+
+    # --- PARKERING ---
     "apcoa": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
     "europark": {"web": "https://www.kontrollavgift.no/", "navn": "Apcoa/Europark (Kontrollavgift.no)"},
     "aimo": {"web": "https://www.aimopark.no/kontakt-oss/kontrollsanksjon/", "navn": "Aimo Park"},
+    "onepark": {"web": "https://onepark.no/klage/", "navn": "ONEPARK"},
     "easypark": {"email": "kundeservice@easypark.no", "navn": "EasyPark"},
+    "riverty": {"web": "https://www.riverty.com/no-no/kundeservice/", "navn": "Riverty (Faktura)", "advarsel": "Gjelder ofte selve betalingen/fakturaen."},
+
+    # --- VAREKJØP ---
     "elkjop": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
     "elkjøp": {"email": "kundesenter@elkjop.no", "navn": "Elkjøp Kundeservice"},
     "power": {"email": "kundeservice@power.no", "navn": "Power Kundeservice"},
@@ -107,25 +152,14 @@ def extract_pdf_data(uploaded_file):
     return full_text, first_page_img
 
 def check_name_similarity(name_on_doc, user_name):
-    """
-    Sjekker om navnet på dokumentet ligner på brukernavnet.
-    Returnerer False hvis navnene virker helt forskjellige.
-    """
-    if not name_on_doc or not user_name:
-        return True # Kan ikke sjekke, antar OK
-    
-    # Normalisering: små bokstaver, fjern tegn
+    if not name_on_doc or not user_name: return True
     doc_clean = re.sub(r'[^\w\s]', '', name_on_doc.lower()).split()
     user_clean = re.sub(r'[^\w\s]', '', user_name.lower()).split()
-    
-    # Sjekk om minst ett av navne-delene (f.eks etternavn) matcher
-    # Dette håndterer "Ola Nordmann" vs "Nordmann, Ola"
     match_found = False
     for part in user_clean:
-        if part in doc_clean and len(part) > 2: # Ignorerer korte ord som "av", "og"
+        if part in doc_clean and len(part) > 2:
             match_found = True
             break
-            
     return match_found
 
 def generate_complaint(prompt: str, image=None) -> dict:
@@ -214,14 +248,19 @@ with tab_auto:
             else:
                 image_input = Image.open(uploaded_file)
             
-            # --- PROMPT MED NAVN-EKSTRAKSJON ---
+            # --- PROMPT (MED EKSTRA STRENG SPRÅKKONTROLL) ---
             prompt_auto = f"""
             Du er en profesjonell, norsk klagehjelper.
             DOKUMENT-TEKST: {text_input[:4000]}
             
             OPPGAVE:
-            1. Analyser dokumentet. Identifiser SELSKAPSNAVN og PERSONNAVN (hvis synlig på kvittering/billett).
+            1. Analyser dokumentet. Identifiser SELSKAPSNAVN og PERSONNAVN.
             2. Skriv en reklamasjon basert på NORSK LOV.
+            
+            VIKTIG OM SPRÅK:
+            - Hele klagebrevet SKAL skrives på NORSK (Bokmål).
+            - Selv om dokumentet er på engelsk, russisk eller andre språk, skal du OVERSETTE all relevant info til norsk i selve brevet.
+            - IKKE bytt språk midt i teksten.
             
             DATA:
             - DATO: {hendelsesdato}
@@ -239,11 +278,11 @@ with tab_auto:
             
             OUTPUT FORMAT (JSON):
             {{
-                "selskapsnavn_funnet": "string (f.eks 'Elkjøp')",
-                "navn_paa_kvittering": "string (Navnet på kjøper/passasjer hvis det finnes, ellers null)",
-                "emne": "string",
+                "selskapsnavn_funnet": "string",
+                "navn_paa_kvittering": "string (eller null)",
+                "emne": "string (På Norsk)",
                 "mottaker_epost_gjetning": "string",
-                "brødtekst": "string"
+                "brødtekst": "string (Kun på Norsk)"
             }}
             """
             
@@ -286,12 +325,14 @@ with tab_manuell:
         st.session_state.uploaded_filename = None
 
         prompt_man = f"""
-        Skriv en klage.
+        Skriv en klage på NORSK.
         Avsender: {mitt_navn}
         Mottaker: {company_for_prompt}
         Sak: {desc_man}
         Krav: {req_man}
         Lovverk: {CATEGORY_HINTS[kategori_man]}
+        
+        VIKTIG: Hele teksten skal være på norsk bokmål.
         
         OUTPUT FORMAT (JSON):
         {{
@@ -318,11 +359,7 @@ if st.session_state.generated_complaint:
     data = st.session_state.generated_complaint
     detected_name = st.session_state.detected_company
     
-    # ---------------------------------------------
-    # NYTT: NAVNE-SJEKK (SIKKERHET)
-    # ---------------------------------------------
     doc_name = data.get("navn_paa_kvittering")
-    
     if doc_name and mitt_navn:
         is_match = check_name_similarity(doc_name, mitt_navn)
         if not is_match:
@@ -332,7 +369,6 @@ if st.session_state.generated_complaint:
                 "Sjekk at du bruker ditt eget dokument.", 
                 icon="🚫"
             )
-    # ---------------------------------------------
 
     contact_info = get_best_contact_method(detected_name)
     
