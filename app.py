@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import date
 from dotenv import load_dotenv
 from PIL import Image
-import fitz  # PyMuPDF for PDF-håndtering
+import fitz  # PyMuPDF
 
 import streamlit as st
 import google.generativeai as genai
@@ -21,7 +21,7 @@ st.set_page_config(page_title="KlageHjelpen", page_icon="⚖️", layout="wide")
 st.title("⚖️ KlageHjelpen")
 st.markdown("**Din profesjonelle forbruker-agent.**")
 
-# --- DATABASE (Beholdes for manuell del) ---
+# --- DATABASE ---
 COMPANY_DB = {
     "Varekjøp": {
         "Elkjøp": "hello@elkjop.no", "Power": "kundeservice@power.no",
@@ -71,36 +71,50 @@ def parse_ai_output(text: str, default_subject: str) -> tuple[str, str, str]:
     return emne, epost, body
 
 def process_uploaded_file(uploaded_file):
-    """Gjør om filen (bilde eller PDF) til et bilde-objekt AI kan lese"""
     if uploaded_file.type == "application/pdf":
-        # Konverterer første side av PDF til bilde
         doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-        page = doc.load_page(0)  # Tar side 1
+        page = doc.load_page(0)
         pix = page.get_pixmap()
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         return img
     else:
-        # Det er allerede et bilde
         return Image.open(uploaded_file)
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_with_gemini(prompt: str, image=None) -> str:
     genai.configure(api_key=ENV_API_KEY)
     
-    # ENDRET: Bruker 'latest' for å sikre at vi treffer en modell som finnes
-    model_name = "gemini-1.5-flash-latest" 
+    # FORSØK 1: Vi prøver den mest stabile versjonen først
+    # 'gemini-1.5-flash-001' er ofte mer stabil enn aliaset 'flash'
+    model_name = "gemini-1.5-flash-001"
     
-    model = genai.GenerativeModel(model_name)
-    
-    inputs = [prompt]
-    if image:
-        inputs.append(image)
+    # Hvis vi ikke har bilde, kan vi bruke 'gemini-pro' som fallback hvis flash feiler
+    if image is None:
+        # Men vi prøver flash først siden den er billigst
+        pass
 
     try:
+        model = genai.GenerativeModel(model_name)
+        inputs = [prompt]
+        if image:
+            inputs.append(image)
+        
         response = model.generate_content(inputs)
         return response.text
+
     except Exception as e:
-        raise e
+        # Hvis det feiler, prøv "latest"-varianten som backup
+        try:
+            fallback_model = "gemini-1.5-flash-latest"
+            model = genai.GenerativeModel(fallback_model)
+            inputs = [prompt]
+            if image:
+                inputs.append(image)
+            response = model.generate_content(inputs)
+            return response.text
+        except:
+            # Hvis begge feiler, kast den opprinnelige feilen
+            raise e
 
 # ==========================================
 # 3. SIDEBAR
@@ -109,7 +123,6 @@ with st.sidebar:
     st.header("👤 Innstillinger")
     rolle = st.radio("Jeg klager som:", ["Privatperson", "Bedrift"], index=0)
     st.markdown("---")
-    st.caption("Din kontaktinfo")
     mitt_navn = st.text_input("Ditt navn", placeholder="Ola Nordmann")
     min_epost = st.text_input("Din e-post", placeholder="ola@mail.no")
     
@@ -118,13 +131,28 @@ with st.sidebar:
     with st.expander("🧡 Vipps en gave"):
         st.markdown("**Vipps:** `920 573 95`")
 
+    # --- DEBUG VERKTØY (NY!) ---
+    st.markdown("---")
+    with st.expander("🛠️ Debug: Se modeller"):
+        if st.button("List opp tilgjengelige modeller"):
+            try:
+                genai.configure(api_key=ENV_API_KEY)
+                models = []
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        models.append(m.name)
+                st.write("Modeller funnet:")
+                st.code("\n".join(models))
+            except Exception as e:
+                st.error(f"Kunne ikke liste modeller: {e}")
+
 # ==========================================
-# 4. HOVEDAPP (TABS)
+# 4. HOVEDAPP
 # ==========================================
 
 tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp)", "✍️ Manuell (Skjema)"])
 
-# --- TAB 1: AUTOMATISK (MAGISK) ---
+# --- TAB 1: AUTOMATISK ---
 with tab_auto:
     st.info("📸 **Last opp PDF (f.eks bot/faktura) eller bilde – la AI gjøre resten!**")
     
@@ -134,7 +162,7 @@ with tab_auto:
         uploaded_file = st.file_uploader("Last opp dokument", type=["jpg", "jpeg", "png", "pdf"])
         
     with col_info:
-        feil_beskrivelse = st.text_area("Hva er problemet? (Kort)", placeholder="F.eks: TV-en virker ikke lenger, eller flyet var 4 timer forsinket.", height=100)
+        feil_beskrivelse = st.text_area("Hva er problemet? (Kort)", placeholder="F.eks: TV-en virker ikke lenger...", height=100)
         
     if st.button("Generer klage automatisk 🚀", type="primary"):
         if not ENV_API_KEY:
@@ -143,38 +171,28 @@ with tab_auto:
         if not uploaded_file:
             st.error("⚠️ Du må laste opp et dokument først.")
             st.stop()
-        if not mitt_navn:
-            st.warning("⚠️ Tips: Fyll ut navnet ditt i menyen til venstre for best resultat.")
 
         try:
-            # Behandle filen (PDF eller Bilde)
             image = process_uploaded_file(uploaded_file)
             st.image(image, caption="Analyserer dokument...", width=300)
 
             prompt_auto = f"""
             Du er en ekspert på norsk forbrukerrett.
+            OPPGAVE: Analyser bildet og skriv en klage.
+            BRUKERENS BESKRIVELSE: "{feil_beskrivelse}"
+            NAVN: {mitt_navn} ({min_epost})
+            ROLLE: {rolle}
             
-            OPPGAVE:
-            1. Analyser bildet jeg har lastet opp. Finn: Mottaker (Selskap), Dato, Produkt/Tjeneste, Pris/Ref-nr.
-            2. Skriv en formell klage/reklamasjon basert på bildet OG brukerens beskrivelse av feilen.
-            
-            BRUKERENS BESKRIVELSE AV FEILEN: "{feil_beskrivelse}"
-            KLAGERENS NAVN: {mitt_navn} ({min_epost})
-            ROLLE: {rolle} (Hvis privatperson: Bruk Forbrukerkjøpsloven/Flyrettigheter. Hvis bedrift: Kjøpsloven).
-            
-            VIKTIG:
-            - Finn selv rett e-postadresse basert på firmanavnet i kvitteringen hvis mulig.
-            - Skriv flytende norsk. Ingen overskrifter som "Problembeskrivelse".
-            - Vær høflig men bestemt.
+            VIKTIG: Skriv flytende norsk brev. Ingen overskrifter som 'Beskrivelse'.
             
             FORMAT:
-            MAIL_EMNE: <Kort emne>
-            MAIL_MOTTAKER: <E-post (gjett hvis ukjent)>
+            MAIL_EMNE: <Emne>
+            MAIL_MOTTAKER: <E-post>
             MAIL_BODY:
-            <Selve teksten>
+            <Tekst>
             """
             
-            with st.spinner("🔍 Analyserer dokumentet og skriver klage..."):
+            with st.spinner("Analyserer og skriver..."):
                 raw_text = generate_with_gemini(prompt_auto, image)
                 emne, mottaker, body = parse_ai_output(raw_text, "Klage")
                 
@@ -186,13 +204,13 @@ with tab_auto:
                 st.link_button("📧 Send e-post", mailto)
                 
         except Exception as e:
-            st.error(f"Noe gikk galt under analysen: {e}")
+            st.error(f"En feil oppstod: {e}")
+            st.info("Tips: Sjekk 'Debug: Se modeller' i menyen for å se hvilke navn vi har tilgang til.")
 
 
-# --- TAB 2: MANUELL (GAMLE MÅTEN) ---
+# --- TAB 2: MANUELL ---
 with tab_manuell:
-    st.caption("Fyll ut skjemaet manuelt hvis du ikke har dokumentasjon tilgjengelig.")
-    
+    st.caption("Fyll ut skjemaet manuelt.")
     kategori = st.selectbox("Kategori", list(COMPANY_DB.keys()))
     company_list = COMPANY_DB.get(kategori, {})
     
@@ -211,12 +229,12 @@ with tab_manuell:
     with c2:
         tone = st.selectbox("Tone", ["Formell", "Bestemt", "Vennlig"])
     
-    beskrivelse_manuell = st.text_area("Hva har skjedd? (Stikkord)", height=150)
-    krav_manuell = st.text_input("Hva krever du?", placeholder="F.eks. Ny vare, pengene tilbake...")
+    beskrivelse_manuell = st.text_area("Hva har skjedd?", height=150)
+    krav_manuell = st.text_input("Hva krever du?")
 
     if st.button("Opprett klage (Manuelt)"):
         if not motpart or not beskrivelse_manuell:
-            st.error("Mangler selskap eller beskrivelse.")
+            st.error("Mangler info.")
             st.stop()
             
         prompt_manuell = f"""
@@ -226,7 +244,7 @@ with tab_manuell:
         Sak: {beskrivelse_manuell}
         Krav: {krav_manuell}
         Tone: {tone}
-        Lovverk: Bruk norsk lovverk for {rolle}.
+        Rolle: {rolle}
         
         FORMAT:
         MAIL_EMNE: <Emne>
