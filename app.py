@@ -5,6 +5,7 @@ import urllib.parse
 from datetime import date
 from dotenv import load_dotenv
 from PIL import Image
+import fitz  # Dette er PyMuPDF (for PDF-håndtering)
 
 import streamlit as st
 import google.generativeai as genai
@@ -69,10 +70,25 @@ def parse_ai_output(text: str, default_subject: str) -> tuple[str, str, str]:
     else: body = text
     return emne, epost, body
 
+def process_uploaded_file(uploaded_file):
+    """Gjør om filen (bilde eller PDF) til et bilde-objekt AI kan lese"""
+    if uploaded_file.type == "application/pdf":
+        # Konverterer første side av PDF til bilde
+        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        page = doc.load_page(0)  # Tar side 1
+        pix = page.get_pixmap()
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        return img
+    else:
+        # Det er allerede et bilde
+        return Image.open(uploaded_file)
+
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_with_gemini(prompt: str, image=None) -> str:
     genai.configure(api_key=ENV_API_KEY)
-    # Vi MÅ bruke flash-modellen for å kunne se bilder
+    
+    # Vi må bruke en modell som støtter bilder (Vision)
+    # 1.5-flash er best for dette. Sjekk at requirements.txt er oppdatert!
     model = genai.GenerativeModel("gemini-1.5-flash")
     
     inputs = [prompt]
@@ -109,12 +125,13 @@ tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp)", "✍️ Manuell (S
 
 # --- TAB 1: AUTOMATISK (MAGISK) ---
 with tab_auto:
-    st.info("📸 **Last opp kvittering, bot eller billett – la AI gjøre resten!**")
+    st.info("📸 **Last opp PDF (f.eks bot/faktura) eller bilde – la AI gjøre resten!**")
     
     col_upload, col_info = st.columns([1, 1])
     
     with col_upload:
-        uploaded_file = st.file_uploader("Last opp dokument (Bilde/Skjermbilde)", type=["jpg", "jpeg", "png"])
+        # Nå aksepterer vi også 'pdf'
+        uploaded_file = st.file_uploader("Last opp dokument", type=["jpg", "jpeg", "png", "pdf"])
         
     with col_info:
         feil_beskrivelse = st.text_area("Hva er problemet? (Kort)", placeholder="F.eks: TV-en virker ikke lenger, eller flyet var 4 timer forsinket.", height=100)
@@ -129,35 +146,35 @@ with tab_auto:
         if not mitt_navn:
             st.warning("⚠️ Tips: Fyll ut navnet ditt i menyen til venstre for best resultat.")
 
-        # Vis bildet
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Analyserer dokument...", width=300)
+        try:
+            # Behandle filen (PDF eller Bilde)
+            image = process_uploaded_file(uploaded_file)
+            st.image(image, caption="Analyserer dokument...", width=300)
 
-        prompt_auto = f"""
-        Du er en ekspert på norsk forbrukerrett.
-        
-        OPPGAVE:
-        1. Analyser bildet jeg har lastet opp. Finn: Mottaker (Selskap), Dato, Produkt/Tjeneste, Pris/Ref-nr.
-        2. Skriv en formell klage/reklamasjon basert på bildet OG brukerens beskrivelse av feilen.
-        
-        BRUKERENS BESKRIVELSE AV FEILEN: "{feil_beskrivelse}"
-        KLAGERENS NAVN: {mitt_navn} ({min_epost})
-        ROLLE: {rolle} (Hvis privatperson: Bruk Forbrukerkjøpsloven/Flyrettigheter. Hvis bedrift: Kjøpsloven).
-        
-        VIKTIG:
-        - Finn selv rett e-postadresse basert på firmanavnet i kvitteringen hvis mulig.
-        - Skriv flytende norsk. Ingen overskrifter som "Problembeskrivelse".
-        - Vær høflig men bestemt.
-        
-        FORMAT:
-        MAIL_EMNE: <Kort emne>
-        MAIL_MOTTAKER: <E-post (gjett hvis ukjent)>
-        MAIL_BODY:
-        <Selve teksten>
-        """
-        
-        with st.spinner("🔍 Analyserer dokumentet og skriver klage..."):
-            try:
+            prompt_auto = f"""
+            Du er en ekspert på norsk forbrukerrett.
+            
+            OPPGAVE:
+            1. Analyser bildet jeg har lastet opp. Finn: Mottaker (Selskap), Dato, Produkt/Tjeneste, Pris/Ref-nr.
+            2. Skriv en formell klage/reklamasjon basert på bildet OG brukerens beskrivelse av feilen.
+            
+            BRUKERENS BESKRIVELSE AV FEILEN: "{feil_beskrivelse}"
+            KLAGERENS NAVN: {mitt_navn} ({min_epost})
+            ROLLE: {rolle} (Hvis privatperson: Bruk Forbrukerkjøpsloven/Flyrettigheter. Hvis bedrift: Kjøpsloven).
+            
+            VIKTIG:
+            - Finn selv rett e-postadresse basert på firmanavnet i kvitteringen hvis mulig.
+            - Skriv flytende norsk. Ingen overskrifter som "Problembeskrivelse".
+            - Vær høflig men bestemt.
+            
+            FORMAT:
+            MAIL_EMNE: <Kort emne>
+            MAIL_MOTTAKER: <E-post (gjett hvis ukjent)>
+            MAIL_BODY:
+            <Selve teksten>
+            """
+            
+            with st.spinner("🔍 Analyserer dokumentet og skriver klage..."):
                 raw_text = generate_with_gemini(prompt_auto, image)
                 emne, mottaker, body = parse_ai_output(raw_text, "Klage")
                 
@@ -168,8 +185,8 @@ with tab_auto:
                 mailto = f"mailto:{mottaker}?subject={urllib.parse.quote(emne)}&body={urllib.parse.quote(body)}"
                 st.link_button("📧 Send e-post", mailto)
                 
-            except Exception as e:
-                st.error(f"Noe gikk galt: {e}")
+        except Exception as e:
+            st.error(f"Noe gikk galt under analysen: {e}")
 
 
 # --- TAB 2: MANUELL (GAMLE MÅTEN) ---
