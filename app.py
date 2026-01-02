@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import date
 from dotenv import load_dotenv
 from PIL import Image
-import fitz  # Dette er PyMuPDF (for PDF-håndtering)
+import fitz  # PyMuPDF for PDF-håndtering
 
 import streamlit as st
 import google.generativeai as genai
@@ -87,9 +87,10 @@ def process_uploaded_file(uploaded_file):
 def generate_with_gemini(prompt: str, image=None) -> str:
     genai.configure(api_key=ENV_API_KEY)
     
-    # Vi må bruke en modell som støtter bilder (Vision)
-    # 1.5-flash er best for dette. Sjekk at requirements.txt er oppdatert!
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    # ENDRET: Bruker 'latest' for å sikre at vi treffer en modell som finnes
+    model_name = "gemini-1.5-flash-latest" 
+    
+    model = genai.GenerativeModel(model_name)
     
     inputs = [prompt]
     if image:
@@ -130,7 +131,6 @@ with tab_auto:
     col_upload, col_info = st.columns([1, 1])
     
     with col_upload:
-        # Nå aksepterer vi også 'pdf'
         uploaded_file = st.file_uploader("Last opp dokument", type=["jpg", "jpeg", "png", "pdf"])
         
     with col_info:
