@@ -356,7 +356,11 @@ with tab_manuell:
             height=100,
             placeholder="F.eks: Jeg kjøpte en jakke for 2 måneder siden, og nå har sømmen gått opp..."
         )
-        req_man = st.text_input("Hva krever du?")
+        # ENDRET TIL DROP-DOWN
+        req_man = st.selectbox(
+            "Hva krever du?", 
+            ["Kostnadsfri reparasjon", "Ny vare (omlevering)", "Pengene tilbake (heving)", "Prisavslag", "Erstatning", "Usikker - la AI vurdere"]
+        )
 
     if st.button("Skriv klage (Manuelt)"):
         company_for_prompt = custom_company if custom_company else valgt_selskap_navn
@@ -476,32 +480,36 @@ if st.session_state.generated_complaint:
     is_ready = check_rec and check_txt
     
     st.markdown("---")
+    col_btn, col_copy = st.columns([1, 1])
     
-    if web_link:
+    with col_btn:
+        if web_link:
              st.info("👈 Kopier teksten til høyre, og bruk 'Gå til klageskjema'-knappen lenger opp.")
-    elif user_email and "@" in user_email:
-        
-        # VIS PÅMINNELSE OM VEDLEGG ALLTID
-        if st.session_state.uploaded_filenames:
-            files_str = ", ".join(st.session_state.uploaded_filenames)
-            st.info(f"📎 **Husk:** Legg ved disse filene manuelt i e-posten: **{files_str}**", icon="⚠️")
-        else:
-            st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
-
-        safe_s = urllib.parse.quote(user_subject)
-        safe_b = urllib.parse.quote(user_body)
-        mailto = f"mailto:{user_email}?subject={safe_s}&body={safe_b}"
-        
-        st.link_button(
-            "📧 Åpne i E-postprogram", 
-            mailto, 
-            type="primary", 
-            use_container_width=True,
-            disabled=not is_ready 
-        )
-        
-        if not is_ready:
-            st.caption("🛑 Du må huke av sjekkpunktene over for å aktivere knappen.")
+        elif user_email and "@" in user_email:
             
-    else:
-        st.warning("Mangler e-postadresse.")
+            # VIS PÅMINNELSE OM VEDLEGG ALLTID
+            if st.session_state.uploaded_filenames:
+                files_str = ", ".join(st.session_state.uploaded_filenames)
+                st.info(f"📎 **Husk:** Legg ved disse filene manuelt i e-posten: **{files_str}**", icon="⚠️")
+            else:
+                st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
+
+            safe_s = urllib.parse.quote(user_subject)
+            safe_b = urllib.parse.quote(user_body)
+            mailto = f"mailto:{user_email}?subject={safe_s}&body={safe_b}"
+            
+            st.link_button(
+                "📧 Åpne i E-postprogram", 
+                mailto, 
+                type="primary", 
+                use_container_width=True,
+                disabled=not is_ready 
+            )
+            
+            if not is_ready:
+                st.caption("🛑 Du må huke av sjekkpunktene over for å aktivere knappen.")
+                
+        else:
+            st.warning("Mangler e-postadresse.")
+
+    # DEN GRÅ KODE-BOKSEN ER NÅ FJERNET HELT
