@@ -162,21 +162,25 @@ def check_name_similarity(name_on_doc, user_name):
             break
     return match_found
 
-def generate_complaint(prompt: str, image=None) -> dict:
+def generate_complaint(prompt: str, images=None) -> dict:
     model_name = "gemini-2.0-flash"
     generation_config = {"response_mime_type": "application/json"}
+    
+    inputs = [prompt]
+    if images:
+        if isinstance(images, list):
+            inputs.extend(images)
+        else:
+            inputs.append(images)
+
     try:
         model = genai.GenerativeModel(model_name, generation_config=generation_config)
-        inputs = [prompt]
-        if image: inputs.append(image)
         response = model.generate_content(inputs)
         return json.loads(response.text)
     except Exception as e:
         try:
             fallback = "gemini-1.5-flash"
             model = genai.GenerativeModel(fallback, generation_config=generation_config)
-            inputs = [prompt]
-            if image: inputs.append(image)
             response = model.generate_content(inputs)
             return json.loads(response.text)
         except:
@@ -212,18 +216,23 @@ if "generated_complaint" not in st.session_state:
     st.session_state.generated_complaint = None
 if "detected_company" not in st.session_state:
     st.session_state.detected_company = None
-if "uploaded_filename" not in st.session_state:
-    st.session_state.uploaded_filename = None
+if "uploaded_filenames" not in st.session_state:
+    st.session_state.uploaded_filenames = []
 
-tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokument)", "✍️ Manuell (Skriv selv)"])
+tab_auto, tab_manuell = st.tabs(["✨ Automatisk (Last opp dokumenter)", "✍️ Manuell (Skriv selv)"])
 
 # --- TAB 1: AUTOMATISK ---
 with tab_auto:
-    st.info("🔒 **Trygg opplasting:** Dokumentet analyseres midlertidig og lagres ikke.", icon="🛡️")
+    st.info("🔒 **Trygg opplasting:** Dokumentene analyseres midlertidig og lagres ikke.", icon="🛡️")
     
     col_upload, col_info = st.columns([1, 1])
     with col_upload:
-        uploaded_file = st.file_uploader("Last opp kvittering, bot eller billett", type=["jpg", "jpeg", "png", "pdf"])
+        uploaded_files = st.file_uploader(
+            "Last opp filer (Kvittering, bilder av skade osv.)", 
+            type=["jpg", "jpeg", "png", "pdf"], 
+            accept_multiple_files=True
+        )
+        
     with col_info:
         hendelsesdato = st.date_input("Når skjedde dette?", value=date.today())
         feil_beskrivelse = st.text_area("Kort beskrivelse av problemet", height=100)
@@ -232,35 +241,42 @@ with tab_auto:
     tone = st.radio("Tonefall:", ["Saklig (Anbefalt)", "Vennlig", "Veldig formell"], horizontal=True)
 
     if st.button("Generer klageutkast 🚀", type="primary"):
-        if not uploaded_file:
-            st.error("⚠️ Du må laste opp et dokument først.")
+        if not uploaded_files:
+            st.error("⚠️ Du må laste opp minst én fil.")
             st.stop()
         if not mitt_navn:
             st.warning("⚠️ Tips: Fyll ut navnet ditt i menyen til venstre for best resultat.")
 
         try:
-            st.session_state.uploaded_filename = uploaded_file.name
+            st.session_state.uploaded_filenames = [f.name for f in uploaded_files]
 
-            image_input = None
-            text_input = ""
-            if uploaded_file.type == "application/pdf":
-                text_input, image_input = extract_pdf_data(uploaded_file)
-            else:
-                image_input = Image.open(uploaded_file)
+            all_images = []
+            combined_text = ""
+
+            for uploaded_file in uploaded_files:
+                if uploaded_file.type == "application/pdf":
+                    text, img = extract_pdf_data(uploaded_file)
+                    combined_text += f"\n--- TEKST FRA {uploaded_file.name} ---\n{text}"
+                    if img: all_images.append(img)
+                else:
+                    img = Image.open(uploaded_file)
+                    all_images.append(img)
             
-            # --- PROMPT (MED EKSTRA STRENG SPRÅKKONTROLL) ---
+            # --- PROMPT ---
             prompt_auto = f"""
             Du er en profesjonell, norsk klagehjelper.
-            DOKUMENT-TEKST: {text_input[:4000]}
+            
+            DOKUMENT-TEKST: {combined_text[:6000]}
             
             OPPGAVE:
-            1. Analyser dokumentet. Identifiser SELSKAPSNAVN og PERSONNAVN.
-            2. Skriv en reklamasjon basert på NORSK LOV.
+            1. Analyser vedlagte bilder/dokumenter.
+            2. Identifiser SELSKAPSNAVN og PERSONNAVN (på kvittering/billett).
+            3. HVIS det er bilde av en SKADE/FEIL: Beskriv skaden kort i brevet (f.eks "Som vedlagte bilde viser...").
+            4. Skriv en reklamasjon basert på NORSK LOV.
             
             VIKTIG OM SPRÅK:
             - Hele klagebrevet SKAL skrives på NORSK (Bokmål).
-            - Selv om dokumentet er på engelsk, russisk eller andre språk, skal du OVERSETTE all relevant info til norsk i selve brevet.
-            - IKKE bytt språk midt i teksten.
+            - Oversett all info fra dokumentene til norsk.
             
             DATA:
             - DATO: {hendelsesdato}
@@ -286,8 +302,8 @@ with tab_auto:
             }}
             """
             
-            with st.spinner("Analyserer dokument og sjekker kontaktdatabase..."):
-                result_json = generate_complaint(prompt_auto, image_input)
+            with st.spinner(f"Analyserer {len(uploaded_files)} dokument(er) og skriver klage..."):
+                result_json = generate_complaint(prompt_auto, all_images)
                 st.session_state.generated_complaint = result_json
                 st.session_state.detected_company = result_json.get("selskapsnavn_funnet", "")
                 
@@ -322,7 +338,7 @@ with tab_manuell:
                 break
         
         forced_email = found_info.get("email", "") if found_info else ""
-        st.session_state.uploaded_filename = None
+        st.session_state.uploaded_filenames = []
 
         prompt_man = f"""
         Skriv en klage på NORSK.
@@ -431,8 +447,9 @@ if st.session_state.generated_complaint:
              st.info("👈 Kopier teksten til høyre, og bruk 'Gå til klageskjema'-knappen lenger opp.")
         elif user_email and "@" in user_email:
             if check_rec and check_txt and check_att:
-                if st.session_state.uploaded_filename:
-                    st.info(f"📎 **Husk:** Legg ved filen **{st.session_state.uploaded_filename}** manuelt i e-posten.", icon="⚠️")
+                if st.session_state.uploaded_filenames:
+                    files_str = ", ".join(st.session_state.uploaded_filenames)
+                    st.info(f"📎 **Husk:** Legg ved disse filene manuelt i e-posten: **{files_str}**", icon="⚠️")
                 else:
                     st.info("📎 **Husk:** Du må legge ved eventuelle bilder/kvitteringer manuelt.", icon="⚠️")
 
